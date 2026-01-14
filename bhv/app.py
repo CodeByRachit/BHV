@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -9,8 +9,14 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Length, Optional
-from werkzeug.utils import secure_filename
-import uuid
+
+# SECURITY & REFACTOR FIX: Import from centralized utilities
+from bhv.utils.validators import (
+    allowed_file, 
+    sanitize_filename, 
+    generate_unique_filename, 
+    validate_file_size
+)
 
 # Database setup
 db = SQLAlchemy()
@@ -62,32 +68,6 @@ class ImageUploadForm(FlaskForm):
     ])
     submit = SubmitField('Upload Image')
 
-# Validator functions
-def allowed_file(filename, allowed_extensions):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
-
-def sanitize_filename(filename):
-    filename = secure_filename(filename)
-    filename = filename.replace('/', '').replace('\\', '')
-    name, ext = os.path.splitext(filename)
-    if len(name) > 100:
-        name = name[:100]
-    return f"{name}{ext}"
-
-def generate_unique_filename(original_filename):
-    ext = Path(original_filename).suffix.lower()
-    unique_name = f"{uuid.uuid4().hex}{ext}"
-    return unique_name
-
-def validate_file_size(file_size, max_size):
-    return 0 < file_size <= max_size
-
-def get_file_size(file_path):
-    try:
-        return os.path.getsize(file_path)
-    except Exception:
-        return 0
-
 # App factory
 def create_app():
     BASE_DIR = Path(__file__).parent.parent
@@ -96,8 +76,8 @@ def create_app():
                 static_folder=str(BASE_DIR / 'static'),
                 static_url_path='/static')
     
-    # Config
-    app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'
+    # SECURITY FIX: Load SECRET_KEY from environment variable
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{BASE_DIR / "bhv.db"}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = BASE_DIR / 'static' / 'uploads'
@@ -109,6 +89,7 @@ def create_app():
     
     with app.app_context():
         db.create_all()
+        # Note: Default user logic for initial setup
         if User.query.count() == 0:
             default_user = User(username='default', email='default@bhv.org')
             default_user.set_password('changeme123')
@@ -126,6 +107,15 @@ def create_app():
         if form.validate_on_submit():
             file = form.image.data
             
+            # SECURITY FIX: In-memory size validation BEFORE disk save (DoS protection)
+            file.seek(0, os.SEEK_END)
+            file_size = file.tell()
+            file.seek(0)
+            
+            if not validate_file_size(file_size, app.config['MAX_CONTENT_LENGTH']):
+                flash('File is empty or exceeds the 5MB limit.', 'error')
+                return redirect(request.url)
+            
             if not allowed_file(file.filename, app.config['ALLOWED_EXTENSIONS']):
                 flash('Invalid file type. Only PNG, JPG, JPEG, and GIF are allowed.', 'error')
                 return redirect(request.url)
@@ -133,25 +123,18 @@ def create_app():
             original_filename = sanitize_filename(file.filename)
             unique_filename = generate_unique_filename(original_filename)
             file_path = Path(app.config['UPLOAD_FOLDER']) / unique_filename
+            
+            # Save validated file
             file.save(file_path)
             
-            if not os.path.exists(file_path):
-                flash('Failed to save file.', 'error')
-                return redirect(request.url)
-            
-            file_size = get_file_size(file_path)
-            if not validate_file_size(file_size, app.config['MAX_CONTENT_LENGTH']):
-                os.remove(file_path)
-                flash(f'File too large. Maximum size is 5MB.', 'error')
-                return redirect(request.url)
-            
+            # DATA FIX: Use actual file.mimetype instead of hardcoded strings
             image = Image(
                 filename=unique_filename,
                 original_filename=original_filename,
                 title=form.title.data,
                 description=form.description.data,
                 file_size=file_size,
-                mime_type='image/jpeg',
+                mime_type=file.mimetype, 
                 width=0,
                 height=0,
                 user_id=1
@@ -170,10 +153,10 @@ def create_app():
         images = Image.query.order_by(Image.uploaded_at.desc()).all()
         return render_template('gallery.html', images=images)
     
-    @app.route('/uploads/<filename>')
+    # SECURITY FIX: Prevent Path Traversal with send_from_directory
+    @app.route('/uploads/<path:filename>')
     def serve_upload(filename):
-        upload_folder = Path(app.config['UPLOAD_FOLDER'])
-        return send_file(upload_folder / filename)
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     
     @app.route('/health')
     def health():

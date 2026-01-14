@@ -1,18 +1,37 @@
 {% extends "base.html" %}
 {% block title %}Gallery - BHV{% endblock %}
+
 {% block content %}
-<h2 style="text-align: center; margin-bottom: 30px;">Image Gallery</h2>
+<style>
+    /* Centralized styles to replace inline CSS as requested by the code review */
+    .gallery-header { text-align: center; margin-bottom: 30px; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .image-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .image-card img { width: 100%; height: 250px; object-fit: cover; }
+    .card-content { padding: 15px; }
+    .card-title { margin-bottom: 10px; }
+    .card-description { color: #666; margin-bottom: 10px; }
+    .card-footer { font-size: 0.9rem; color: #999; border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; }
+    .empty-gallery { text-align: center; padding: 50px; background: white; border-radius: 10px; }
+    .empty-gallery-text { font-size: 1.2rem; color: #666; }
+    .upload-btn { display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; }
+</style>
+
+<h2 class="gallery-header">Image Gallery</h2>
+
 {% if images %}
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+    <div class="gallery-grid">
         {% for image in images %}
-        <div style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <img src="{{ url_for('serve_upload', filename=image.filename) }}" alt="{{ image.title }}" style="width: 100%; height: 250px; object-fit: cover;">
-            <div style="padding: 15px;">
-                <h3 style="margin-bottom: 10px;">{{ image.title }}</h3>
+        <div class="image-card">
+            <img src="{{ url_for('serve_upload', filename=image.filename) }}" alt="{{ image.title }}">
+            <div class="card-content">
+                <h3 class="card-title">{{ image.title }}</h3>
                 {% if image.description %}
-                <p style="color: #666; margin-bottom: 10px;">{{ image.description[:150] }}{% if image.description|length > 150 %}...{% endif %}</p>
+                <p class="card-description">
+                    {{ image.description[:150] }}{% if image.description|length > 150 %}...{% endif %}
+                </p>
                 {% endif %}
-                <div style="font-size: 0.9rem; color: #999; border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px;">
+                <div class="card-footer">
                     <p><strong>Size:</strong> {{ (image.file_size / 1024)|round(1) }} KB</p>
                     <p><strong>Uploaded:</strong> {{ image.uploaded_at.strftime('%Y-%m-%d') }}</p>
                 </div>
@@ -21,9 +40,9 @@
         {% endfor %}
     </div>
 {% else %}
-    <div style="text-align: center; padding: 50px; background: white; border-radius: 10px;">
-        <p style="font-size: 1.2rem; color: #666;">No images uploaded yet.</p>
-        <a href="{{ url_for('upload') }}" style="display: inline-block; margin-top: 20px; background: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px;">Upload Your First Image</a>
+    <div class="empty-gallery">
+        <p class="empty-gallery-text">No images uploaded yet.</p>
+        <a href="{{ url_for('upload') }}" class="upload-btn">Upload Your First Image</a>
     </div>
 {% endif %}
 {% endblock %}
