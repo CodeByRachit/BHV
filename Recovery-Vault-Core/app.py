@@ -2,6 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
+from sqlalchemy.exc import SQLAlchemyError
 from models import db, RecoveryEntry
 from validators import is_authorized_upload, anonymize_filename
 
@@ -13,7 +14,6 @@ app.config['UPLOAD_FOLDER'] = 'static/img'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 
 
 # SECURITY: Get key from environment (Production safe).
-# If this is None, the app will crash in production (Good! Forces you to set it).
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
 db.init_app(app)
@@ -33,6 +33,7 @@ def index():
 
 @app.route('/ingest', methods=['POST'])
 def ingest_record():
+    """Handles file uploads with specific error handling."""
     file = request.files.get('image')
     narrative = request.form.get('narrative')
     
@@ -61,9 +62,17 @@ def ingest_record():
             db.session.commit()
             
             flash("Record successfully vaulted.", "success")
-        except Exception as e:
-            app.logger.error(f"System Error: {e}")
-            flash("A system error occurred while saving the file.", "error")
+        
+        # Bot Fix: Catch specific File System errors
+        except OSError as e:
+            app.logger.error(f"File Error: {e}")
+            flash("System error saving the file.", "error")
+        
+        # Bot Fix: Catch specific Database errors
+        except SQLAlchemyError as e:
+            app.logger.error(f"Database Error: {e}")
+            flash("Database error saving the record.", "error")
+            
     else:
         flash("Security Error: Invalid file type or size.", "error")
     
@@ -74,15 +83,16 @@ def delete_record(entry_id: int):
     entry = RecoveryEntry.query.get_or_404(entry_id)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], entry.stored_filename)
     
-    # Atomic Deletion Strategy
+    # 1. Delete DB record first (Atomic strategy)
     try:
         db.session.delete(entry)
         db.session.commit()
-    except Exception as e:
+    except SQLAlchemyError as e:
         app.logger.error(f"Database Error: {e}")
         flash("Error deleting database record.", "error")
         return redirect(url_for('index'))
 
+    # 2. Then delete physical file
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
@@ -99,11 +109,7 @@ if __name__ == '__main__':
         db.create_all()
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
-    # --- LOCAL DEVELOPMENT FIX ---
-    # Since we are running this file directly (not in production),
-    # we can safely inject a dev key and enable debug mode.
     if not app.config['SECRET_KEY']:
         app.config['SECRET_KEY'] = 'dev-secret-key-for-local-testing'
     
-    # Enable debug=True for local testing so you can see errors
     app.run(debug=True, port=8000)
