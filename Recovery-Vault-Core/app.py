@@ -1,6 +1,7 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.utils import secure_filename
 from models import db, RecoveryEntry
 from validators import is_authorized_upload, anonymize_filename
 
@@ -9,32 +10,29 @@ app = Flask(__name__)
 # --- Configuration ---
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vault_core.db'
 app.config['UPLOAD_FOLDER'] = 'static/img'
-# Security: Use environment variable or fallback for dev
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'production-grade-secret')
-# Security: Block requests larger than 100MB immediately
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 
 
-# Initialize extensions
+# SECURITY: Get key from environment (Production safe).
+# If this is None, the app will crash in production (Good! Forces you to set it).
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+
 db.init_app(app)
+
+# Constants for Template
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_too_large(e):
-    """Global error handler for files exceeding the size limit."""
     flash("Error: File is too large. Maximum size is 100MB.", "error")
     return redirect(url_for('index'))
 
 @app.route('/')
 def index():
-    """Renders the dashboard with all recovery records."""
     entries = RecoveryEntry.query.order_by(RecoveryEntry.created_at.desc()).all()
-    return render_template('dashboard.html', entries=entries)
+    return render_template('dashboard.html', entries=entries, image_extensions=IMAGE_EXTENSIONS)
 
 @app.route('/ingest', methods=['POST'])
 def ingest_record():
-    """
-    Handles file uploads and database entry creation.
-    Performs security checks on extension and file size.
-    """
     file = request.files.get('image')
     narrative = request.form.get('narrative')
     
@@ -42,7 +40,6 @@ def ingest_record():
         flash("No file selected.", "error")
         return redirect(url_for('index'))
 
-    # Check file size manually for validator logic (double-check)
     file.seek(0, os.SEEK_END)
     size = file.tell()
     file.seek(0)
@@ -50,17 +47,14 @@ def ingest_record():
     if is_authorized_upload(file.filename, size):
         try:
             secure_name = anonymize_filename(file.filename)
+            safe_display_name = secure_filename(file.filename)
             
-            # Ensure upload directory exists
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            
-            # Save the file
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], secure_name))
             
-            # Save to Database
             entry = RecoveryEntry(
                 stored_filename=secure_name, 
-                display_name=file.filename, 
+                display_name=safe_display_name, 
                 narrative_text=narrative
             )
             db.session.add(entry)
@@ -68,8 +62,8 @@ def ingest_record():
             
             flash("Record successfully vaulted.", "success")
         except Exception as e:
-            # Catch file permission or OS errors
-            flash(f"System Error: {str(e)}", "error")
+            app.logger.error(f"System Error: {e}")
+            flash("A system error occurred while saving the file.", "error")
     else:
         flash("Security Error: Invalid file type or size.", "error")
     
@@ -77,23 +71,25 @@ def ingest_record():
 
 @app.route('/delete/<int:entry_id>', methods=['POST'])
 def delete_record(entry_id: int):
-    """
-    Deletes a record from the database and removes the associated file.
-    """
     entry = RecoveryEntry.query.get_or_404(entry_id)
-    
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], entry.stored_filename)
     
-    # Attempt to delete actual file
+    # Atomic Deletion Strategy
+    try:
+        db.session.delete(entry)
+        db.session.commit()
+    except Exception as e:
+        app.logger.error(f"Database Error: {e}")
+        flash("Error deleting database record.", "error")
+        return redirect(url_for('index'))
+
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
         except OSError as e:
-            flash(f"Error deleting physical file: {e}", "error")
-    
-    # Delete DB record
-    db.session.delete(entry)
-    db.session.commit()
+            app.logger.error(f"File Deletion Error: {e}")
+            flash("Record deleted, but the associated file could not be removed.", "warning")
+            return redirect(url_for('index'))
     
     flash("Record deleted permanently.", "success")
     return redirect(url_for('index'))
@@ -101,9 +97,13 @@ def delete_record(entry_id: int):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        # Create upload folder on startup to prevent errors
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
-    # debug=True is fine for local dev, but bots might flag it for production code.
-    # We keep it for now as this is an MVP.
+    # --- LOCAL DEVELOPMENT FIX ---
+    # Since we are running this file directly (not in production),
+    # we can safely inject a dev key and enable debug mode.
+    if not app.config['SECRET_KEY']:
+        app.config['SECRET_KEY'] = 'dev-secret-key-for-local-testing'
+    
+    # Enable debug=True for local testing so you can see errors
     app.run(debug=True, port=8000)
