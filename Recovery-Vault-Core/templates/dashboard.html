@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recovery Vault Core</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* --- LIGHT THEME --- */
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text-primary: #1a1a1a;
+            --text-secondary: #595959;
+            --input-bg: #ffffff;
+            --input-border: #d1d5db;
+            --accent-color: #0066cc;
+            --accent-hover: #004c99;
+            --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.08);
+            --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.05);
+            --upload-zone-bg: #f3f4f6;
+            --danger-color: #e74c3c;
+            --border-radius: 16px;
+        }
+
+        [data-theme="dark"] {
+            /* --- DARK THEME --- */
+            --bg-gradient: linear-gradient(to right, #0f0c29, #302b63, #24243e);
+            --card-bg: rgba(20, 20, 30, 0.8);
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --input-bg: rgba(0, 0, 0, 0.4);
+            --input-border: #4a4a6a;
+            --accent-color: #00d2ff;
+            --accent-hover: #00a8cc;
+            --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.6);
+            --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
+            --upload-zone-bg: rgba(255, 255, 255, 0.05);
+            --danger-color: #ff6b81;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            color: var(--text-primary);
+            background: var(--bg-gradient);
+            transition: background 0.6s ease, color 0.3s ease;
+        }
+
+        /* --- NAVIGATION --- */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 3rem;
+            z-index: 100;
+        }
+
+        .brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        /* --- FLASH MESSAGES --- */
+        .flash-messages {
+            width: 100%; max-width: 580px; margin-bottom: 2rem;
+        }
+        .alert {
+            padding: 1rem; border-radius: 12px; margin-bottom: 1rem;
+            font-weight: 600; text-align: center;
+            animation: slideDown 0.5s ease-out;
+        }
+        .alert-success { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
+        .alert-error { background: rgba(231, 76, 60, 0.2); color: var(--danger-color); border: 1px solid var(--danger-color); }
+        @keyframes slideDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+
+
+        /* --- MAIN CONTAINER --- */
+        .main-container {
+            width: 100%;
+            max-width: 580px;
+            animation: floatUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        @keyframes floatUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 2.5rem;
+            border-radius: 24px;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.4s ease;
+        }
+
+        [data-theme="dark"] .glass-card {
+            box-shadow: 0 0 40px rgba(0, 210, 255, 0.05);
+            border: 1px solid rgba(0, 210, 255, 0.1);
+        }
+
+        h2 { text-align: center; margin-bottom: 2rem; font-weight: 800; }
+
+        /* --- UPLOAD ZONE --- */
+        .upload-zone {
+            position: relative;
+            border: 2px dashed var(--input-border);
+            border-radius: var(--border-radius);
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: var(--upload-zone-bg);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent-color);
+            background: rgba(0, 102, 204, 0.03);
+        }
+
+        .upload-zone input[type="file"] {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer; z-index: 2;
+        }
+
+        .default-content {
+            transition: opacity 0.3s ease;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        
+        .upload-icon { 
+            font-size: 3rem; margin-bottom: 0.5rem; 
+            filter: grayscale(100%); transition: filter 0.3s; 
+        }
+        
+        .upload-zone:hover .upload-icon { filter: grayscale(0%); }
+
+        .preview-content {
+            display: none;
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+            z-index: 5;
+            background: var(--upload-zone-bg);
+            align-items: center; justify-content: center;
+        }
+
+        .preview-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* THUMBNAIL LOGIC */
+        #preview-img, #file-icon-svg {
+            max-height: 80px; 
+            width: auto;
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            border: 2px solid var(--card-bg);
+        }
+
+        #preview-img { object-fit: cover; }
+
+        #file-icon-svg {
+            width: 80px; height: 80px; padding: 15px;
+            background: var(--card-bg); color: var(--accent-color);
+        }
+
+        #preview-filename {
+            font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;
+            max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* Generic Trash Button Style */
+        .btn-icon-trash {
+            background: var(--card-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 6px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-icon-trash:hover {
+            background: var(--danger-color); color: white;
+            border-color: var(--danger-color); transform: scale(1.1);
+        }
+        .btn-icon-trash svg { width: 18px; height: 18px; }
+
+
+        /* Preview Trash Specifics */
+        .preview-trash {
+            position: absolute; top: 12px; right: 12px; z-index: 10;
+        }
+
+
+        /* --- INPUTS --- */
+        .input-group { position: relative; margin-top: 1.5rem; }
+
+        textarea {
+            width: 100%;
+            padding: 1rem; padding-top: 1.8rem;
+            border-radius: 12px;
+            border: 2px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-family: inherit; font-size: 1rem; font-weight: 500;
+            resize: vertical; min-height: 120px;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus { outline: none; border-color: var(--accent-color); }
+        textarea::placeholder { opacity: 0; }
+
+        .floating-label {
+            position: absolute;
+            top: 1.1rem; left: 1rem;
+            color: var(--text-secondary);
+            font-size: 1rem; font-weight: 500;
+            pointer-events: none;
+            transition: all 0.2s ease;
+        }
+
+        textarea:focus + .floating-label,
+        textarea:not(:placeholder-shown) + .floating-label {
+            top: 0.5rem; font-size: 0.75rem;
+            color: var(--accent-color); font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+
+        .btn-submit {
+            background: var(--accent-color);
+            color: #ffffff;
+            border: none; width: 100%; padding: 1.2rem;
+            border-radius: 12px;
+            font-size: 1rem; font-weight: 700;
+            cursor: pointer; transition: all 0.3s;
+            margin-top: 2rem;
+            box-shadow: 0 10px 20px -10px var(--accent-color);
+        }
+
+        .btn-submit:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -10px var(--accent-color);
+        }
+
+        /* --- FEED --- */
+        .feed-container {
+            width: 100%; max-width: 1000px; margin-top: 4rem;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem; padding-bottom: 3rem;
+        }
+
+        .entry-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s ease;
+            box-shadow: var(--shadow-lg);
+            position: relative; 
+            opacity: 0;
+            animation: popIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .entry-card:nth-child(1) { animation-delay: 0.1s; }
+        .entry-card:nth-child(2) { animation-delay: 0.2s; }
+        .entry-card:nth-child(3) { animation-delay: 0.3s; }
+
+        .entry-card:hover { transform: translateY(-8px); }
+        
+        /* MODIFIED: Increased height and changed object-fit */
+        .card-media-wrapper {
+            position: relative;
+            height: 250px; /* Increased height for better visibility */
+            background: var(--upload-zone-bg); /* Subtle background for padding */
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+        }
+
+        /* MODIFIED: object-fit: contain ensures the WHOLE image is seen */
+        .card-img { width: 100%; height: 100%; object-fit: contain; transition: transform 0.5s; }
+        .entry-card:hover .card-img { transform: scale(1.05); }
+
+        /* Feed Delete Button */
+        .feed-delete-form {
+            position: absolute;
+            top: 10px; right: 10px;
+            z-index: 20;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        
+        .entry-card:hover .feed-delete-form { opacity: 1; }
+
+        .card-body { padding: 1.5rem; }
+        .timestamp { font-size: 0.85rem; color: var(--text-secondary); display: block; margin-top: 1rem; font-weight: 600; }
+
+        /* --- CUSTOM MODAL STYLES --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+        .modal-card {
+            background: var(--card-bg);
+            padding: 2rem; border-radius: 20px;
+            max-width: 400px; width: 90%;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--input-border);
+            transform: translateY(20px);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .modal-overlay.active .modal-card { transform: translateY(0); }
+
+        .modal-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary); }
+        .modal-text { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; }
+
+        .modal-actions { display: flex; gap: 1rem; justify-content: center; }
+
+        .btn-modal {
+            padding: 0.8rem 1.5rem; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .btn-cancel { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-primary); }
+        .btn-cancel:hover { background: var(--upload-zone-bg); }
+        .btn-confirm { background: var(--danger-color); color: white; box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3); }
+        .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(231, 76, 60, 0.4); }
+
+        /* THEME TOGGLE */
+        .theme-toggle {
+            background: none; border: none; cursor: pointer; padding: 0;
+            color: var(--text-primary); font-size: 2.2rem; display: flex; z-index: 200;
+            transition: color 0.3s;
+        }
+        .theme-toggle:hover { color: var(--accent-color); }
+        .theme-toggle__classic { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        [data-theme="dark"] .theme-toggle__classic { transform: rotate(-45deg); }
+        [data-theme="dark"] .theme-toggle__classic g[stroke="currentColor"] { opacity: 0; transition: opacity 0.2s; }
+        .theme-toggle__classic g[stroke="currentColor"] { opacity: 1; transition: opacity 0.5s; }
+        .theme-toggle__classic #theme-toggle__classic__cutout path {
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translate(0, -5px);
+        }
+        [data-theme="dark"] .theme-toggle__classic #theme-toggle__classic__cutout path {
+            transform: translate(-12px, 8px);
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="brand">
+            <span style="font-size: 2rem;">🛡️</span> 
+            <span style="background: linear-gradient(90deg, var(--text-primary), var(--accent-color)); -webkit-background-clip: text; background-clip: text; color: transparent;">
+                Recovery Vault
+            </span>
+        </div>
+        
+        <button class="theme-toggle" type="button" title="Toggle theme" aria-label="Switch Theme" onclick="toggleTheme(event)">
+            <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="1em" height="1em" fill="currentColor" stroke-linecap="round" class="theme-toggle__classic" viewBox="0 0 32 32">
+                <clipPath id="theme-toggle__classic__cutout"><path d="M0-5h30a1 1 0 0 0 9 13v24H0Z" /></clipPath>
+                <g clip-path="url(#theme-toggle__classic__cutout)">
+                    <circle cx="16" cy="16" r="9.34" />
+                    <g stroke="currentColor" stroke-width="1.5">
+                        <path d="M16 5.5v-4" /><path d="M16 30.5v-4" /><path d="M1.5 16h4" /><path d="M26.5 16h4" />
+                        <path d="m23.4 8.6 2.8-2.8" /><path d="m5.7 26.3 2.9-2.9" /><path d="m5.8 5.8 2.8 2.8" /><path d="m23.4 23.4 2.9 2.9" />
+                    </g>
+                </g>
+            </svg>
+        </button>
+    </nav>
+
+    <div id="deleteModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-title">Delete Record?</div>
+            <p class="modal-text">This action cannot be undone. The file and narrative will be permanently removed.</p>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-modal btn-confirm" onclick="confirmDelete()">Yes, Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <main class="main-container">
+        <div class="glass-card">
+            <h2>Secure Ingestion</h2>
+            
+            <form action="/ingest" method="POST" enctype="multipart/form-data" id="uploadForm">
+                
+                <div class="upload-zone" id="uploadZone">
+                    <label for="fileInput" style="display:none;">Upload Recovery Document</label>
+                    <input type="file" name="image" id="fileInput" required onchange="handleFileSelect(this)" aria-label="Upload File">
+                    
+                    <div class="default-content" id="default-view">
+                        <span class="upload-icon">☁️</span>
+                        <span style="font-weight: 600; color: var(--text-secondary);">Drop File or Click to Browse</span>
+                    </div>
+
+                    <div class="preview-content" id="preview-view">
+                        <button type="button" class="btn-icon-trash preview-trash" onclick="clearFile(event)" title="Delete and Select New" aria-label="Remove File">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+
+                        <div class="preview-stack">
+                            <a id="download-link" title="Click to Download" target="_blank">
+                                <img id="preview-img" src="" alt="Preview">
+                                <svg id="file-icon-svg" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                            </a>
+                            <span id="preview-filename">filename.pdf</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <textarea name="narrative" id="narrative" placeholder=" " required aria-label="Textual Narrative"></textarea>
+                    <label for="narrative" class="floating-label">Describe the recovery context...</label>
+                </div>
+
+                <button type="submit" class="btn-submit">Encrypt & Vault Record</button>
+            </form>
+        </div>
+    </main>
+
+    <section class="feed-container">
+        {% for entry in entries %}
+        <article class="entry-card">
+            
+            <button type="button" class="feed-delete-form btn-icon-trash" 
+                    data-url="{{ url_for('delete_record', entry_id=entry.id) }}"
+                    onclick="openModal(this.dataset.url)"
+                    title="Delete Record" aria-label="Delete Record">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            </button>
+
+            <a href="/static/img/{{ entry.stored_filename }}" download="{{ entry.display_name }}" class="card-media-wrapper">
+                {% if entry.stored_filename.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')) %}
+                    <img src="/static/img/{{ entry.stored_filename }}" loading="lazy" alt="Preview" class="card-img">
+                {% else %}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-secondary);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                {% endif %}
+            </a>
+            <div class="card-body">
+                <p>{{ entry.narrative_text }}</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                    <span class="timestamp">{{ entry.created_at.strftime('%b %d • %H:%M') }}</span>
+                    <span class="timestamp" style="color:var(--accent-color);">{{ entry.display_name|truncate(15, True) }}</span>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+
+    <form id="realDeleteForm" method="POST" style="display:none;"></form>
+
+    <script>
+        // --- MODAL LOGIC ---
+        let deleteUrl = '';
+
+        function openModal(url) {
+            deleteUrl = url;
+            document.getElementById('deleteModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('deleteModal').classList.remove('active');
+        }
+
+        function confirmDelete() {
+            const form = document.getElementById('realDeleteForm');
+            form.action = deleteUrl;
+            form.submit();
+        }
+
+        // Close modal if clicking outside the card
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // --- PREVIEW LOGIC ---
+        function handleFileSelect(input) {
+            const file = input.files[0];
+            if (file) {
+                const objectUrl = URL.createObjectURL(file);
+                const img = document.getElementById('preview-img');
+                const icon = document.getElementById('file-icon-svg');
+                const link = document.getElementById('download-link');
+                const filenameSpan = document.getElementById('preview-filename');
+                const defaultView = document.getElementById('default-view');
+                const previewView = document.getElementById('preview-view');
+
+                link.href = objectUrl;
+                link.download = file.name;
+                filenameSpan.textContent = file.name;
+
+                if (file.type.startsWith('image/')) {
+                    img.style.display = 'block';
+                    icon.style.display = 'none';
+                    img.src = objectUrl;
+                } else {
+                    img.style.display = 'none';
+                    icon.style.display = 'block';
+                }
+
+                defaultView.style.opacity = '0';
+                setTimeout(() => {
+                    defaultView.style.display = 'none';
+                    previewView.style.display = 'flex';
+                }, 300);
+            }
+        }
+
+        function clearFile(event) {
+            event.preventDefault(); event.stopPropagation();
+            const input = document.getElementById('fileInput');
+            const defaultView = document.getElementById('default-view');
+            const previewView = document.getElementById('preview-view');
+            const img = document.getElementById('preview-img');
+
+            input.value = ''; 
+            img.src = ''; 
+            previewView.style.display = 'none';
+            defaultView.style.display = 'flex';
+            setTimeout(() => { defaultView.style.opacity = '1'; }, 10);
+        }
+
+        const saved = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+
+        function toggleTheme(event) {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+
+            if (!document.startViewTransition) {
+                html.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+                return;
+            }
+            const x = event.clientX; const y = event.clientY;
+            const endRadius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+            const transition = document.startViewTransition(() => {
+                html.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+            });
+            transition.ready.then(() => {
+                const clipPath = [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`];
+                document.documentElement.animate({ clipPath: clipPath }, { duration: 700, easing: 'cubic-bezier(0.25, 1, 0.5, 1)', pseudoElement: '::view-transition-new(root)' });
+            });
+        }
+    </script>
+</body>
+</html>
