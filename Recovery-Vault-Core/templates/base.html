@@ -25,14 +25,9 @@
         
         .brand { font-weight: 800; font-size: 1.4rem; display: flex; align-items: center; gap: 0.8rem; text-decoration: none; color: var(--text-primary); }
 
-        /* NAV RIGHT WRAPPER (Aligns Tabs & Sun Icon) */
-        .nav-right {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-        }
+        .nav-right { display: flex; align-items: center; gap: 1.5rem; }
 
-        /* --- TABS CSS --- */
+        /* TABS CSS */
         .tabs {
             display: flex;
             position: relative;
@@ -43,11 +38,7 @@
             border: 1px solid var(--border-color);
         }
 
-        .tabs * { z-index: 2; }
-
-        .tabs input[type="radio"] { display: none; }
-
-        .tab {
+        .tab-link {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -56,38 +47,34 @@
             font-size: .9rem;
             color: var(--text-secondary);
             font-weight: 500;
+            text-decoration: none;
             border-radius: 99px;
-            cursor: pointer;
+            z-index: 2;
             transition: color 0.15s ease-in;
+            position: relative;
         }
 
-        /* Active State */
-        .tabs input[type="radio"]:checked + label {
-            color: var(--accent-color);
-            font-weight: 700;
-        }
+        .tab-link.active { color: var(--accent-color); font-weight: 700; }
 
-        /* Glider Animation */
         .glider {
             position: absolute;
-            display: flex;
             height: 35px;
             width: 80px;
             background-color: rgba(24, 94, 224, 0.1);
             z-index: 1;
             border-radius: 99px;
-            transition: 0.25s ease-out;
             left: 0.5rem;
+            transition: 0.25s ease-out;
+            pointer-events: none;
         }
-        
         [data-theme="dark"] .glider { background-color: rgba(255, 255, 255, 0.15); }
 
-        /* Glider Positions */
-        .tabs input[id="radio-1"]:checked ~ .glider { transform: translateX(0); }
-        .tabs input[id="radio-2"]:checked ~ .glider { transform: translateX(100%); }
-        .tabs input[id="radio-3"]:checked ~ .glider { transform: translateX(200%); }
+        /* Glider Logic */
+        .tabs:has(.tab-link:nth-child(1).active) .glider { transform: translateX(0); }
+        .tabs:has(.tab-link:nth-child(2).active) .glider { transform: translateX(100%); }
+        .tabs:has(.tab-link:nth-child(3).active) .glider { transform: translateX(200%); }
 
-        /* --- THEME TOGGLE --- */
+        /* THEME TOGGLE */
         .theme-toggle { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-primary); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; transition: color 0.3s; }
         .theme-toggle:hover { color: var(--accent-color); }
         .theme-toggle__classic { transition: transform 0.5s cubic-bezier(0.5, 1.25, 0.75, 1.25); }
@@ -97,13 +84,13 @@
         .theme-toggle__classic #theme-toggle__classic__cutout path { transition: transform 0.5s cubic-bezier(0.5, 1.25, 0.75, 1.25); transform: translate(0, -5px); }
         [data-theme="dark"] .theme-toggle__classic #theme-toggle__classic__cutout path { transform: translate(-12px, 8px); }
 
-        /* --- LAYOUT & ALERTS --- */
+        /* GLOBAL */
         .content-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 3rem 2rem; width: 100%; max-width: 1200px; margin: 0 auto; }
         .alert { padding: 1rem; border-radius: 12px; margin-bottom: 1rem; text-align: center; font-weight: 600; width: 100%; max-width: 600px; margin-left: auto; margin-right: auto; transition: opacity 0.5s ease-out, transform 0.5s ease-out; opacity: 1; }
         .alert-success { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
         .alert-error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
         
-        /* --- MODAL --- */
+        /* MODAL */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(5px); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
         .modal-overlay.active { opacity: 1; pointer-events: all; }
         .modal-card { background: var(--card-bg); padding: 2rem; border-radius: 20px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.2); border: 1px solid var(--border-color); transform: translateY(20px); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -115,11 +102,9 @@
         .btn-cancel { background: rgba(0,0,0,0.05); color: var(--text-primary); border: 1px solid var(--border-color); }
         .btn-confirm { background: var(--danger-color); color: white; }
 
-        /* Animation */
         ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
         ::view-transition-new(root) { z-index: 2147483646; }
         ::view-transition-old(root) { z-index: 1; }
-
         @media (max-width: 700px) { .tabs { transform: scale(0.9); } }
     </style>
     {% block extra_css %}{% endblock %}
@@ -134,26 +119,10 @@
             </a>
 
             <div class="nav-right">
-                
                 <div class="tabs">
-                    <input type="radio" id="radio-1" name="tabs" 
-                           data-url="{{ url_for('welcome') }}"
-                           onclick="window.location.href=this.dataset.url"
-                           {% if request.endpoint == 'welcome' %}checked{% endif %}>
-                    <label class="tab" for="radio-1">Home</label>
-                    
-                    <input type="radio" id="radio-2" name="tabs" 
-                           data-url="{{ url_for('upload_page') }}"
-                           onclick="window.location.href=this.dataset.url"
-                           {% if request.endpoint == 'upload_page' %}checked{% endif %}>
-                    <label class="tab" for="radio-2">Upload</label>
-                    
-                    <input type="radio" id="radio-3" name="tabs" 
-                           data-url="{{ url_for('gallery_page') }}"
-                           onclick="window.location.href=this.dataset.url"
-                           {% if request.endpoint == 'gallery_page' %}checked{% endif %}>
-                    <label class="tab" for="radio-3">Gallery</label>
-                    
+                    <a href="{{ url_for('welcome') }}" class="tab-link {% if request.endpoint == 'welcome' %}active{% endif %}">Home</a>
+                    <a href="{{ url_for('upload_page') }}" class="tab-link {% if request.endpoint == 'upload_page' %}active{% endif %}">Upload</a>
+                    <a href="{{ url_for('gallery_page') }}" class="tab-link {% if request.endpoint == 'gallery_page' %}active{% endif %}">Gallery</a>
                     <span class="glider"></span>
                 </div>
 
@@ -176,7 +145,7 @@
     <div id="deleteModal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-title">Delete Record?</div>
-            <p class="modal-text">This action cannot be undone. The file and narrative will be permanently removed.</p>
+            <p class="modal-text">This action cannot be undone.</p>
             <div class="modal-actions">
                 <button class="btn-modal btn-cancel" onclick="closeModal()">Cancel</button>
                 <button class="btn-modal btn-confirm" onclick="confirmDelete()">Yes, Delete</button>
@@ -200,29 +169,16 @@
     </main>
 
     <script>
+        // 1. Theme Logic
         const saved = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', saved);
 
-        // Auto Dismiss Alerts (10 Seconds)
-        document.addEventListener('DOMContentLoaded', () => {
-            const alerts = document.querySelectorAll('.alert');
-            if (alerts.length > 0) {
-                setTimeout(() => {
-                    alerts.forEach(alert => {
-                        alert.style.opacity = '0';
-                        alert.style.transform = 'translateY(-10px)';
-                        setTimeout(() => { alert.remove(); }, 500);
-                    });
-                }, 10000); 
-            }
-        });
-
-        // Theme Toggle Logic
         function toggleTheme(event) {
             const html = document.documentElement;
             const current = html.getAttribute('data-theme');
             const next = current === 'light' ? 'dark' : 'light';
 
+            // Use View Transitions if supported
             if (!document.startViewTransition) {
                 html.setAttribute('data-theme', next);
                 localStorage.setItem('theme', next);
@@ -246,20 +202,39 @@
             });
         }
 
-        // Modal Logic
+        // 2. Auto Dismiss Alerts
+        document.addEventListener('DOMContentLoaded', () => {
+            const alerts = document.querySelectorAll('.alert');
+            if (alerts.length > 0) {
+                setTimeout(() => {
+                    alerts.forEach(alert => {
+                        alert.style.opacity = '0';
+                        alert.style.transform = 'translateY(-10px)';
+                        setTimeout(() => { alert.remove(); }, 500);
+                    });
+                }, 10000); 
+            }
+        });
+
+        // 3. Modal & Delete Logic (Crucial for Gallery)
         let deleteUrl = '';
+        
         function openModal(url) {
             deleteUrl = url;
             document.getElementById('deleteModal').classList.add('active');
         }
+        
         function closeModal() {
             document.getElementById('deleteModal').classList.remove('active');
         }
+        
         function confirmDelete() {
             const form = document.getElementById('realDeleteForm');
             form.action = deleteUrl;
             form.submit();
         }
+        
+        // Close modal if clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('deleteModal');
             if (event.target == modal) closeModal();

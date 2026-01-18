@@ -28,15 +28,12 @@
         flex-direction: column;
     }
     
-    /* STAGGERED DELAYS */
     .entry-card:nth-child(1) { animation-delay: 0.1s; }
     .entry-card:nth-child(2) { animation-delay: 0.2s; }
     .entry-card:nth-child(3) { animation-delay: 0.3s; }
     .entry-card:nth-child(n+4) { animation-delay: 0.4s; }
 
-    .entry-card:hover { 
-        transform: translateY(-5px); 
-    }
+    .entry-card:hover { transform: translateY(-5px); }
     
     .card-img-wrapper { 
         height: 220px; 
@@ -48,20 +45,15 @@
         position: relative;
     }
     
-    /* --- FIX FOR IMAGE VISIBILITY --- */
     .card-img { 
         width: 100%; 
         height: 100%; 
-        /* 'contain' ensures the whole image is seen without cropping */
-        object-fit: contain; 
-        /* Small padding so it doesn't touch the borders */
+        object-fit: contain; /* Ensures full image visibility */
         padding: 10px; 
         transition: transform 0.3s ease;
     }
     
-    .entry-card:hover .card-img {
-        transform: scale(1.05);
-    }
+    .entry-card:hover .card-img { transform: scale(1.05); }
     
     .card-body { 
         padding: 1.5rem; 
@@ -85,7 +77,7 @@
         align-self: flex-start;
     }
     
-    /* DELETE BUTTON */
+    /* DELETE BUTTON - Made more visible */
     .delete-btn { 
         position: absolute; 
         top: 10px; 
@@ -100,23 +92,16 @@
         display: flex; 
         align-items: center; 
         justify-content: center; 
-        opacity: 0; 
+        opacity: 0.7; /* Visible by default now */
         transition: opacity 0.2s, transform 0.2s; 
         box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
         font-size: 1.2rem; 
-        z-index: 10;
+        z-index: 100; /* High Z-Index ensures clickability */
     }
     
-    .entry-card:hover .delete-btn { 
-        opacity: 1; 
-    }
-    
-    .delete-btn:hover { 
-        transform: scale(1.1); 
-        background: #fff; 
-    }
+    .entry-card:hover .delete-btn { opacity: 1; }
+    .delete-btn:hover { transform: scale(1.1); background: #fff; }
 
-    /* FOOTER LAYOUT */
     .card-footer {
         display: flex;
         justify-content: space-between;
@@ -134,7 +119,7 @@
         gap: 2px;
     }
 
-    /* COMPACT DOWNLOAD BUTTON */
+    /* DOWNLOAD BUTTON */
     .download-btn {
         position: relative;
         width: 110px;
@@ -151,36 +136,12 @@
     }
 
     .download-btn, .button__icon, .button__text { transition: all 0.3s; }
-
-    .download-btn .button__text {
-        transform: translateX(12px);
-        color: #fff;
-        font-weight: 600;
-        font-size: 0.75rem;
-    }
-
-    .download-btn .button__icon {
-        position: absolute;
-        transform: translateX(80px);
-        height: 100%;
-        width: 30px;
-        background-color: #17795E;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .download-btn .svg {
-        width: 14px;
-        fill: #fff;
-    }
-
+    .download-btn .button__text { transform: translateX(12px); color: #fff; font-weight: 600; font-size: 0.75rem; }
+    .download-btn .button__icon { position: absolute; transform: translateX(80px); height: 100%; width: 30px; background-color: #17795E; display: flex; align-items: center; justify-content: center; }
+    .download-btn .svg { width: 14px; fill: #fff; }
     .download-btn:hover { background: #17795E; }
     .download-btn:hover .button__text { color: transparent; }
-    .download-btn:hover .button__icon {
-        width: 108px;
-        transform: translateX(0);
-    }
+    .download-btn:hover .button__icon { width: 108px; transform: translateX(0); }
     .download-btn:active { border-color: #146c54; }
     .download-btn:active .button__icon { background-color: #146c54; }
 </style>
@@ -196,6 +157,7 @@
         <button type="button" class="delete-btn" 
                 data-url="{{ url_for('delete_record', entry_id=entry.id) }}"
                 onclick="openModal(this.dataset.url)"
+                aria-label="Delete Record"
                 title="Delete Record">
             🗑️
         </button>
@@ -204,7 +166,7 @@
              {% if entry.stored_filename.lower().endswith(image_extensions) %}
                 <img src="/static/img/{{ entry.stored_filename }}" class="card-img" loading="lazy" alt="Evidence">
             {% else %}
-                <span style="font-size: 3.5rem; opacity: 0.6;">📄</span>
+                <span class="file-icon" style="font-size: 3.5rem; opacity: 0.6;">📄</span>
             {% endif %}
         </div>
         
