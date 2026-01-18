@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    /* ANIMATION KEYFRAMES */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .gallery-grid { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+        gap: 2rem; 
+        width: 100%; 
+    }
+    
+    .entry-card { 
+        background: var(--card-bg); 
+        border-radius: 20px; 
+        overflow: hidden; 
+        border: 1px solid var(--border-color); 
+        transition: transform 0.3s; 
+        position: relative; 
+        opacity: 0; 
+        animation: fadeInUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* STAGGERED DELAYS */
+    .entry-card:nth-child(1) { animation-delay: 0.1s; }
+    .entry-card:nth-child(2) { animation-delay: 0.2s; }
+    .entry-card:nth-child(3) { animation-delay: 0.3s; }
+    .entry-card:nth-child(n+4) { animation-delay: 0.4s; }
+
+    .entry-card:hover { 
+        transform: translateY(-5px); 
+    }
+    
+    .card-img-wrapper { 
+        height: 220px; 
+        background: rgba(0,0,0,0.03); 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        overflow: hidden; 
+        position: relative;
+    }
+    
+    /* --- FIX FOR IMAGE VISIBILITY --- */
+    .card-img { 
+        width: 100%; 
+        height: 100%; 
+        /* 'contain' ensures the whole image is seen without cropping */
+        object-fit: contain; 
+        /* Small padding so it doesn't touch the borders */
+        padding: 10px; 
+        transition: transform 0.3s ease;
+    }
+    
+    .entry-card:hover .card-img {
+        transform: scale(1.05);
+    }
+    
+    .card-body { 
+        padding: 1.5rem; 
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .badge { 
+        background: rgba(46, 204, 113, 0.1); 
+        color: #2ecc71; 
+        padding: 6px 10px; 
+        border-radius: 8px; 
+        font-size: 0.75rem; 
+        font-weight: 700; 
+        display: inline-flex; 
+        align-items: center; 
+        gap: 5px; 
+        border: 1px solid rgba(46, 204, 113, 0.2); 
+        align-self: flex-start;
+    }
+    
+    /* DELETE BUTTON */
+    .delete-btn { 
+        position: absolute; 
+        top: 10px; 
+        right: 10px; 
+        background: rgba(255,255,255,0.95); 
+        border: none; 
+        width: 36px; 
+        height: 36px; 
+        border-radius: 50%; 
+        color: var(--danger-color); 
+        cursor: pointer; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        opacity: 0; 
+        transition: opacity 0.2s, transform 0.2s; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+        font-size: 1.2rem; 
+        z-index: 10;
+    }
+    
+    .entry-card:hover .delete-btn { 
+        opacity: 1; 
+    }
+    
+    .delete-btn:hover { 
+        transform: scale(1.1); 
+        background: #fff; 
+    }
+
+    /* FOOTER LAYOUT */
+    .card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: auto;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+    }
+
+    .meta-info {
+        display: flex;
+        flex-direction: column;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        gap: 2px;
+    }
+
+    /* COMPACT DOWNLOAD BUTTON */
+    .download-btn {
+        position: relative;
+        width: 110px;
+        height: 30px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        border: 1px solid #17795E;
+        background-color: #209978;
+        overflow: hidden;
+        border-radius: 6px;
+        text-decoration: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .download-btn, .button__icon, .button__text { transition: all 0.3s; }
+
+    .download-btn .button__text {
+        transform: translateX(12px);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .download-btn .button__icon {
+        position: absolute;
+        transform: translateX(80px);
+        height: 100%;
+        width: 30px;
+        background-color: #17795E;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .download-btn .svg {
+        width: 14px;
+        fill: #fff;
+    }
+
+    .download-btn:hover { background: #17795E; }
+    .download-btn:hover .button__text { color: transparent; }
+    .download-btn:hover .button__icon {
+        width: 108px;
+        transform: translateX(0);
+    }
+    .download-btn:active { border-color: #146c54; }
+    .download-btn:active .button__icon { background-color: #146c54; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 2rem; animation: fadeInUp 0.5s ease-out;">Evidence Gallery</h2>
+
+<div class="gallery-grid">
+    {% for entry in entries %}
+    <article class="entry-card">
+        
+        <button type="button" class="delete-btn" 
+                data-url="{{ url_for('delete_record', entry_id=entry.id) }}"
+                onclick="openModal(this.dataset.url)"
+                title="Delete Record">
+            🗑️
+        </button>
+
+        <div class="card-img-wrapper">
+             {% if entry.stored_filename.lower().endswith(image_extensions) %}
+                <img src="/static/img/{{ entry.stored_filename }}" class="card-img" loading="lazy" alt="Evidence">
+            {% else %}
+                <span style="font-size: 3.5rem; opacity: 0.6;">📄</span>
+            {% endif %}
+        </div>
+        
+        <div class="card-body">
+            <p>{{ entry.narrative_text }}</p>
+            
+            {% if entry.file_hash %}
+            <div class="badge">
+                <span>🛡️ VERIFIED</span>
+                <span style="font-family: monospace; opacity: 0.7;">{{ entry.file_hash[:8] }}...</span>
+            </div>
+            {% endif %}
+            
+            <div class="card-footer">
+                <div class="meta-info">
+                    <span style="font-weight: 600;">{{ entry.created_at.strftime('%b %d') }}</span>
+                    <span style="opacity: 0.7;">{{ entry.display_name|truncate(10) }}</span>
+                </div>
+
+                <a href="{{ url_for('static', filename='img/' + entry.stored_filename) }}" download="{{ entry.display_name }}" class="download-btn">
+                    <span class="button__text">Download</span>
+                    <span class="button__icon">
+                        <svg class="svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                        </svg>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    /* Card Animation */
+    @keyframes floatUp {
+        0% { opacity: 0; transform: translateY(30px) scale(0.98); }
+        100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .glass-card { 
+        background: var(--card-bg); 
+        padding: 3rem; 
+        border-radius: 24px; 
+        box-shadow: 0 20px 40px rgba(0,0,0,0.08); 
+        border: 1px solid var(--border-color); 
+        width: 100%; 
+        max-width: 500px; 
+        animation: floatUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+
+    /* Upload Zone */
+    .upload-zone { 
+        border: 2px dashed #d1d5db; 
+        border-radius: 16px; 
+        min-height: 220px; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        justify-content: center; 
+        cursor: pointer; 
+        position: relative; 
+        overflow: hidden; 
+        background: rgba(0,0,0,0.02); 
+        transition: border-color 0.3s; 
+        padding: 1rem; 
+        text-align: center; /* Ensures text centers horizontally */
+    }
+    
+    .upload-zone:hover { 
+        border-color: var(--accent-color); 
+        background: rgba(0, 102, 204, 0.03); 
+    }
+    
+    .upload-zone input[type="file"] { 
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100%; 
+        opacity: 0; 
+        cursor: pointer; 
+        z-index: 10; 
+    }
+
+    textarea { 
+        width: 100%; 
+        padding: 1rem; 
+        border-radius: 12px; 
+        border: 1px solid #d1d5db; 
+        margin-top: 1.5rem; 
+        min-height: 120px; 
+        font-family: inherit; 
+        font-size: 1rem;
+        background: #f8f9fa; 
+        color: #1a1a1a;
+        transition: all 0.3s ease;
+    }
+    
+    textarea:focus { outline: none; border-color: var(--accent-color); background: #ffffff; }
+    [data-theme="dark"] textarea { background: rgba(0, 0, 0, 0.3); border-color: #4a4a6a; color: #ffffff; }
+    [data-theme="dark"] textarea:focus { background: rgba(0, 0, 0, 0.5); border-color: var(--accent-color); }
+    [data-theme="dark"] .upload-zone { border-color: #4a4a6a; }
+
+    .btn-submit { 
+        background: var(--accent-color); color: white; border: none; width: 100%; padding: 1rem; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 1.5rem; font-size: 1rem; transition: transform 0.2s, opacity 0.2s; 
+    }
+    .btn-submit:hover { opacity: 0.9; transform: translateY(-2px); }
+
+    /* --- PREVIEW STYLES --- */
+    #preview-container { 
+        display: none; 
+        flex-direction: column; 
+        align-items: center; 
+        z-index: 5; 
+        width: 100%; 
+        position: relative;
+        pointer-events: none; 
+    }
+
+    /* 1. Image Preview */
+    #preview-img { 
+        max-width: 180px; 
+        max-height: 180px; 
+        border-radius: 12px; 
+        object-fit: cover; 
+        border: 2px solid var(--border-color); 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        margin-bottom: 0.5rem; 
+        display: none; /* Hidden by default */
+    }
+
+    /* 2. File Card Preview */
+    .file-preview-card {
+        display: none; /* Hidden by default */
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 140px;
+        height: 140px;
+        background: rgba(127, 127, 127, 0.05); 
+        border-radius: 16px;
+        border: 2px solid var(--border-color);
+        margin-bottom: 0.8rem;
+        position: relative;
+    }
+
+    .file-icon-large {
+        width: 50px;
+        height: 50px;
+        fill: none;
+        stroke: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+
+    .file-type-badge {
+        background: var(--accent-color);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* DEFAULT TEXT CONTAINER - FIXED ALIGNMENT */
+    #default-text { 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        justify-content: center;
+        pointer-events: none;
+        width: 100%;
+        height: 100%;
+        /* Ensure it takes full space to center correctly */
+        position: absolute; 
+        top: 0;
+        left: 0;
+    }
+
+    /* DELETE BUTTON */
+    .button {
+        width: 35px; height: 35px; border-radius: 50%; background-color: rgb(20, 20, 20); border: none; font-weight: 600;
+        position: absolute; top: 15px; right: 15px; z-index: 20; display: none; align-items: center; justify-content: center; box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.164); cursor: pointer; transition-duration: .3s; overflow: hidden;
+    }
+    .svgIcon { width: 10px; transition-duration: .3s; }
+    .svgIcon path { fill: white; }
+    .button:hover { width: 100px; border-radius: 50px; transition-duration: .3s; background-color: rgb(255, 69, 69); align-items: center; }
+    .button:hover .svgIcon { width: 30px; transition-duration: .3s; transform: translateY(60%); }
+    .button::before { position: absolute; top: -20px; content: "Delete"; color: white; transition-duration: .3s; font-size: 2px; }
+    .button:hover::before { font-size: 10px; opacity: 1; transform: translateY(30px); transition-duration: .3s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass-card">
+    <h2 style="text-align: center; margin-bottom: 2rem;">Secure Ingestion</h2>
+    <form action="/ingest" method="POST" enctype="multipart/form-data" id="uploadForm">
+        
+        <div class="upload-zone" id="upload-zone">
+            <input type="file" name="image" id="fileInput" required onchange="handleFileSelect(this)">
+            
+            <button class="button" id="trashBtn" onclick="clearFile(event)" type="button">
+                <svg viewBox="0 0 448 512" class="svgIcon">
+                    <path d="M135.2 17.7L128 32H32C14.3 32 0 46.3 0 64S14.3 96 32 96H416c17.7 0 32-14.3 32-32s-14.3-32-32-32H320l-7.2-14.3C307.4 6.8 296.3 0 284.2 0H163.8c-12.1 0-23.2 6.8-28.6 17.7zM416 128H32L53.2 467c1.6 25.3 22.6 45 47.9 45H346.9c25.3 0 46.3-19.7 47.9-45L416 128z"></path>
+                </svg>
+            </button>
+
+            <div id="default-text">
+                <span style="font-size: 3rem; display: block; margin-bottom: 1rem; opacity: 0.7;">☁️</span>
+                <span style="color: var(--text-secondary); font-weight: 500;">Click to Browse or Drop File</span>
+            </div>
+
+            <div id="preview-container">
+                <img id="preview-img" src="" alt="Preview">
+                
+                <div id="file-preview-card" class="file-preview-card">
+                    <svg class="file-icon-large" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <polyline points="14 2 14 8 20 8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="16" y1="13" x2="8" y2="13" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="16" y1="17" x2="8" y2="17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <polyline points="10 9 9 9 8 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span id="file-extension" class="file-type-badge">FILE</span>
+                </div>
+                
+                <span id="file-name" style="font-size: 0.9rem; color: var(--accent-color); font-weight: 600; text-align: center; word-break: break-all; max-width: 90%;"></span>
+            </div>
+        </div>
+
+        <textarea name="narrative" placeholder="Describe the recovery context..." required></textarea>
+        <button type="submit" class="btn-submit">Encrypt & Vault Record</button>
+    </form>
+</div>
+
+<script>
+    let currentObjectUrl = null;
+    const previewContainer = document.getElementById('preview-container');
+    const defaultText = document.getElementById('default-text');
+    
+    // Elements to toggle
+    const img = document.getElementById('preview-img');
+    const fileCard = document.getElementById('file-preview-card');
+    const extensionBadge = document.getElementById('file-extension');
+    
+    const nameSpan = document.getElementById('file-name');
+    const trashBtn = document.getElementById('trashBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    function handleFileSelect(input) {
+        const file = input.files[0];
+        if (file) {
+            if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); }
+            
+            // UI State: Show Preview, Hide Default Text
+            defaultText.style.display = 'none';
+            previewContainer.style.display = 'flex';
+            trashBtn.style.display = 'flex';
+            nameSpan.textContent = file.name;
+
+            // Logic: Is it an image?
+            if (file.type.startsWith('image/')) {
+                img.style.display = 'block';
+                fileCard.style.display = 'none';
+                
+                currentObjectUrl = URL.createObjectURL(file);
+                img.src = currentObjectUrl;
+            } else {
+                img.style.display = 'none';
+                fileCard.style.display = 'flex';
+                
+                const ext = file.name.split('.').pop() || 'FILE';
+                extensionBadge.textContent = ext.toUpperCase();
+            }
+        }
+    }
+
+    function clearFile(event) {
+        event.preventDefault(); 
+        event.stopPropagation();
+        
+        fileInput.value = '';
+        if (currentObjectUrl) {
+            URL.revokeObjectURL(currentObjectUrl);
+            currentObjectUrl = null;
+        }
+        img.src = '';
+
+        // Reset UI
+        previewContainer.style.display = 'none';
+        trashBtn.style.display = 'none';
+        defaultText.style.display = 'flex';
+    }
+</script>
+{% endblock %}
