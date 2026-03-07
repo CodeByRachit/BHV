@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recovery Vault Core</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); --card-bg: rgba(255, 255, 255, 0.95); --text-primary: #1a1a1a; --text-secondary: #595959; --accent-color: #0066cc; --danger-color: #e74c3c; --nav-bg: rgba(255, 255, 255, 0.85); --border-color: rgba(0,0,0,0.1); }
+        [data-theme="dark"] { --bg-gradient: linear-gradient(to right, #0f0c29, #302b63, #24243e); --card-bg: rgba(20, 20, 30, 0.8); --text-primary: #ffffff; --text-secondary: #a0a0a0; --accent-color: #00d2ff; --danger-color: #ff6b81; --nav-bg: rgba(20, 20, 30, 0.7); --border-color: rgba(255,255,255,0.1); }
+        
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg-gradient); color: var(--text-primary); }
+        
+        /* HEADER LAYOUT */
+        header { position: sticky; top: 0; z-index: 100; width: 100%; padding: 1rem 2rem; backdrop-filter: blur(12px); background: var(--nav-bg); border-bottom: 1px solid var(--border-color); }
+        
+        .nav-container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        
+        .brand { font-weight: 800; font-size: 1.4rem; display: flex; align-items: center; gap: 0.8rem; text-decoration: none; color: var(--text-primary); }
+
+        .nav-right { display: flex; align-items: center; gap: 1.5rem; }
+
+        /* TABS CSS */
+        .tabs {
+            display: flex;
+            position: relative;
+            background-color: var(--card-bg);
+            box-shadow: 0 0 1px 0 rgba(24, 94, 224, 0.15), 0 6px 12px 0 rgba(24, 94, 224, 0.15);
+            padding: 0.5rem;
+            border-radius: 99px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 35px;
+            width: 80px;
+            font-size: .9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-decoration: none;
+            border-radius: 99px;
+            z-index: 2;
+            transition: color 0.15s ease-in;
+            position: relative;
+        }
+
+        .tab-link.active { color: var(--accent-color); font-weight: 700; }
+
+        .glider {
+            position: absolute;
+            height: 35px;
+            width: 80px;
+            background-color: rgba(24, 94, 224, 0.1);
+            z-index: 1;
+            border-radius: 99px;
+            left: 0.5rem;
+            transition: 0.25s ease-out;
+            pointer-events: none;
+        }
+        [data-theme="dark"] .glider { background-color: rgba(255, 255, 255, 0.15); }
+
+        /* Glider Logic */
+        .tabs:has(.tab-link:nth-child(1).active) .glider { transform: translateX(0); }
+        .tabs:has(.tab-link:nth-child(2).active) .glider { transform: translateX(100%); }
+        .tabs:has(.tab-link:nth-child(3).active) .glider { transform: translateX(200%); }
+
+        /* USER PROFILE BUTTON CSS */
+        .user-profile {
+            width: 115px;
+            height: 42px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: 0.3s ease;
+            background: linear-gradient(to bottom right, #2e8eff 0%, rgba(46, 142, 255, 0) 30%);
+            background-color: rgba(46, 142, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+        }
+
+        .user-profile:hover,
+        .user-profile:focus {
+            background-color: rgba(46, 142, 255, 0.7);
+            box-shadow: 0 0 10px rgba(46, 142, 255, 0.5);
+            outline: none;
+        }
+
+        .user-profile-inner {
+            width: 111px;
+            height: 38px;
+            border-radius: 13px;
+            background-color: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .user-profile-inner svg {
+            width: 22px;
+            height: 22px;
+            fill: #fff;
+            transition: fill 0.3s;
+        }
+
+        /* Adjust button colors for light theme so it blends in */
+        [data-theme="light"] .user-profile-inner {
+            background-color: #ffffff;
+            color: #1a1a1a;
+        }
+        
+        [data-theme="light"] .user-profile-inner svg {
+            fill: #1a1a1a;
+        }
+
+        /* THEME TOGGLE */
+        .theme-toggle { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-primary); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; transition: color 0.3s; }
+        .theme-toggle:hover { color: var(--accent-color); }
+        .theme-toggle__classic { transition: transform 0.5s cubic-bezier(0.5, 1.25, 0.75, 1.25); }
+        [data-theme="dark"] .theme-toggle__classic { transform: rotate(-45deg); }
+        .theme-toggle__classic g[stroke="currentColor"] { transition: opacity 0.2s ease-in-out; opacity: 1; }
+        [data-theme="dark"] .theme-toggle__classic g[stroke="currentColor"] { opacity: 0; }
+        .theme-toggle__classic #theme-toggle__classic__cutout path { transition: transform 0.5s cubic-bezier(0.5, 1.25, 0.75, 1.25); transform: translate(0, -5px); }
+        [data-theme="dark"] .theme-toggle__classic #theme-toggle__classic__cutout path { transform: translate(-12px, 8px); }
+
+        /* GLOBAL */
+        .content-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 3rem 2rem; width: 100%; max-width: 1200px; margin: 0 auto; }
+        .alert { padding: 1rem; border-radius: 12px; margin-bottom: 1rem; text-align: center; font-weight: 600; width: 100%; max-width: 600px; margin-left: auto; margin-right: auto; transition: opacity 0.5s ease-out, transform 0.5s ease-out; opacity: 1; }
+        .alert-success { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
+        .alert-error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
+        
+        /* MODAL */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(5px); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-card { background: var(--card-bg); padding: 2rem; border-radius: 20px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.2); border: 1px solid var(--border-color); transform: translateY(20px); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .modal-overlay.active .modal-card { transform: translateY(0); }
+        .modal-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary); }
+        .modal-text { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; }
+        .modal-actions { display: flex; gap: 1rem; justify-content: center; }
+        .btn-modal { padding: 0.8rem 1.5rem; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-cancel { background: rgba(0,0,0,0.05); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-confirm { background: var(--danger-color); color: white; }
+
+        ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+        ::view-transition-new(root) { z-index: 2147483646; }
+        ::view-transition-old(root) { z-index: 1; }
+        @media (max-width: 700px) { .tabs { transform: scale(0.9); } }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    <header>
+        <div class="nav-container">
+            <a href="{{ url_for('welcome') }}" class="brand">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 35px; width: auto; object-fit: contain;"> 
+                <span>Recovery Vault</span>
+            </a>
+
+            <div class="nav-right">
+                <div class="tabs">
+                    <a href="{{ url_for('welcome') }}" class="tab-link {% if request.endpoint == 'welcome' %}active{% endif %}">Home</a>
+                    <a href="{{ url_for('upload_page') }}" class="tab-link {% if request.endpoint == 'upload_page' %}active{% endif %}">Upload</a>
+                    <a href="{{ url_for('gallery_page') }}" class="tab-link {% if request.endpoint == 'gallery_page' %}active{% endif %}">Gallery</a>
+                    <span class="glider"></span>
+                </div>
+
+                {% if current_user and current_user.is_authenticated %}
+                    <a href="{{ url_for('logout') }}" class="user-profile">
+                        <div class="user-profile-inner">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M17 16L21 12M21 12L17 8M21 12H9M13 16V17C13 18.6569 11.6569 20 10 20H6C4.34315 20 3 18.6569 3 17V7C3 5.34315 4.34315 4 6 4H10C11.6569 4 13 5.34315 13 7V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Logout
+                        </div>
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('login_page') }}" class="user-profile">
+                        <div class="user-profile-inner">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" stroke="none">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                            </svg>
+                            Login
+                        </div>
+                    </a>
+                {% endif %}
+
+                <button class="theme-toggle" type="button" title="Toggle theme" onclick="toggleTheme(event)">
+                    <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="1em" height="1em" fill="currentColor" stroke-linecap="round" class="theme-toggle__classic" viewBox="0 0 32 32">
+                        <clipPath id="theme-toggle__classic__cutout"><path d="M0-5h30a1 1 0 0 0 9 13v24H0Z" /></clipPath>
+                        <g clip-path="url(#theme-toggle__classic__cutout)">
+                            <circle cx="16" cy="16" r="9.34" />
+                            <g stroke="currentColor" stroke-width="1.5">
+                                <path d="M16 5.5v-4" /><path d="M16 30.5v-4" /><path d="M1.5 16h4" /><path d="M26.5 16h4" />
+                                <path d="m23.4 8.6 2.8-2.8" /><path d="m5.7 26.3 2.9-2.9" /><path d="m5.8 5.8 2.8 2.8" /><path d="m23.4 23.4 2.9 2.9" />
+                            </g>
+                        </g>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div id="deleteModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-title">Delete Record?</div>
+            <p class="modal-text">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-modal btn-confirm" onclick="confirmDelete()">Yes, Delete</button>
+            </div>
+        </div>
+    </div>
+    
+    <form id="realDeleteForm" method="POST" style="display:none;"></form>
+
+    <main class="content-wrapper">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // 1. Theme Logic
+        const saved = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+
+        function toggleTheme(event) {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+
+            // Use View Transitions if supported
+            if (!document.startViewTransition) {
+                html.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+                return;
+            }
+
+            const x = event.clientX;
+            const y = event.clientY;
+            const endRadius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+
+            const transition = document.startViewTransition(() => {
+                html.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+            });
+
+            transition.ready.then(() => {
+                document.documentElement.animate(
+                    { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
+                    { duration: 700, easing: 'cubic-bezier(0.25, 1, 0.5, 1)', pseudoElement: '::view-transition-new(root)' }
+                );
+            });
+        }
+
+        // 2. Auto Dismiss Alerts
+        document.addEventListener('DOMContentLoaded', () => {
+            const alerts = document.querySelectorAll('.alert');
+            if (alerts.length > 0) {
+                setTimeout(() => {
+                    alerts.forEach(alert => {
+                        alert.style.opacity = '0';
+                        alert.style.transform = 'translateY(-10px)';
+                        setTimeout(() => { alert.remove(); }, 500);
+                    });
+                }, 10000); 
+            }
+        });
+
+        // 3. Modal & Delete Logic (Crucial for Gallery)
+        let deleteUrl = '';
+        
+        function openModal(url) {
+            deleteUrl = url;
+            document.getElementById('deleteModal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('deleteModal').classList.remove('active');
+        }
+        
+        function confirmDelete() {
+            const form = document.getElementById('realDeleteForm');
+            form.action = deleteUrl;
+            form.submit();
+        }
+        
+        // Close modal if clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteModal');
+            if (event.target == modal) closeModal();
+        }
+    </script>
+</body>
+</html>

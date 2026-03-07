@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .hero { 
+        text-align: center; 
+        margin-top: 4rem; 
+        animation: fadeIn 0.8s ease-out; 
+    }
+    
+    h1 { 
+        font-size: 3.5rem; 
+        font-weight: 800; 
+        margin-bottom: 0.5rem; 
+        letter-spacing: -1px; 
+    }
+    
+    p { 
+        font-size: 1.2rem; 
+        color: var(--text-secondary); 
+        margin-bottom: 4rem; 
+        max-width: 600px; 
+        margin-left: auto; 
+        margin-right: auto; 
+    }
+    
+    .card-grid { 
+        display: flex; 
+        justify-content: center; 
+        gap: 2rem; 
+        flex-wrap: wrap; 
+    }
+    
+    .action-card {
+        background: var(--card-bg); 
+        padding: 3rem 2rem; 
+        border-radius: 24px; 
+        text-decoration: none; 
+        color: var(--text-primary);
+        width: 280px; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        gap: 1rem;
+        border: 1px solid var(--border-color); 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05); 
+        transition: transform 0.3s, border-color 0.3s;
+    }
+    
+    .action-card:hover { 
+        transform: translateY(-10px); 
+        border-color: var(--accent-color); 
+    }
+    
+    .icon { 
+        font-size: 3rem; 
+    }
+    
+    .card-title { 
+        font-weight: 800; 
+        font-size: 1.2rem; 
+    }
+    
+    .card-desc { 
+        font-size: 0.9rem; 
+        color: var(--text-secondary); 
+    }
+    
+    @keyframes fadeIn { 
+        from { opacity: 0; transform: translateY(20px); } 
+        to { opacity: 1; transform: translateY(0); } 
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>Recovery Vault Core</h1>
+    <p>Secure, compliant, and integrity-verified storage for sensitive recovery narratives.</p>
+    
+    <div class="card-grid">
+        <a href="{{ url_for('upload_page') }}" class="action-card">
+            <span class="icon">☁️</span>
+            <span class="card-title">Secure Upload</span>
+            <span class="card-desc">Ingest new evidence with Privacy Shield.</span>
+        </a>
+        <a href="{{ url_for('gallery_page') }}" class="action-card">
+            <span class="icon">📂</span>
+            <span class="card-title">Evidence Gallery</span>
+            <span class="card-desc">Access vaulted records securely.</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

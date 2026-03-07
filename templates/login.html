@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .auth-container { display: flex; justify-content: center; align-items: center; min-height: 70vh; width: 100%; }
+    .form { display: flex; flex-direction: column; gap: 10px; background-color: #ffffff; padding: 30px; width: 450px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    .form button { align-self: flex-end; }
+    .flex-column > label { color: #151717; font-weight: 600; }
+    .inputForm { border: 1.5px solid #ecedec; border-radius: 10px; height: 50px; display: flex; align-items: center; padding-left: 10px; transition: 0.2s ease-in-out; }
+    .inputForm > svg { width: 20px; height: 20px; fill: #595959; }
+    .input { margin-left: 10px; border-radius: 10px; border: none; width: 100%; height: 100%; font-size: 15px; }
+    .input:focus { outline: none; }
+    .inputForm:focus-within { border: 1.5px solid #2d79f3; }
+    .flex-row { display: flex; flex-direction: row; align-items: center; gap: 10px; justify-content: space-between; }
+    .flex-row > div > label { font-size: 14px; color: black; font-weight: 400; cursor: pointer; }
+    .span { font-size: 14px; margin-left: 5px; color: #2d79f3; font-weight: 500; cursor: pointer; }
+    .span:hover { text-decoration: underline; }
+    .button-submit { margin: 20px 0 10px 0; background-color: #151717; border: none; color: white; font-size: 15px; font-weight: 500; border-radius: 10px; height: 50px; width: 100%; cursor: pointer; transition: 0.2s; }
+    .button-submit:hover { background-color: #252727; }
+    .button-submit:disabled { background-color: #888; cursor: not-allowed; }
+    .p { text-align: center; color: black; font-size: 14px; margin: 5px 0; }
+    
+    .password-toggle { cursor: pointer; padding: 0 15px; display: flex; align-items: center; justify-content: center; }
+    .password-toggle svg { width: 20px; height: 20px; fill: #595959; transition: fill 0.2s; }
+    .password-toggle:hover svg { fill: #2d79f3; }
+
+    [data-theme="dark"] .form { background-color: #1a1a1a; }
+    [data-theme="dark"] .flex-column > label, [data-theme="dark"] .p, [data-theme="dark"] .flex-row > div > label { color: #f0f0f0; }
+    [data-theme="dark"] .inputForm { border-color: #333; background: #252525; }
+    [data-theme="dark"] .input { background: transparent; color: white; }
+    [data-theme="dark"] .button-submit { background-color: #2d79f3; }
+    [data-theme="dark"] .button-submit:hover { background-color: #1b5cc2; }
+    [data-theme="dark"] .password-toggle svg { fill: #a0a0a0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <form class="form" id="authForm" action="/login" method="POST">
+        <h2 id="formTitle" style="margin-bottom: 20px; color: var(--text-primary);">Sign In</h2>
+        
+        <div id="nameGroup" style="display: none;">
+            <div class="flex-column">
+                <label>Full Name</label>
+            </div>
+            <div class="inputForm" style="margin-top: 10px;">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                <input placeholder="Enter your full name" class="input" type="text" name="name" id="nameInput">
+            </div>
+        </div>
+
+        <div id="emailGroup">
+            <div class="flex-column" style="margin-top: 10px;">
+                <label>Email</label>
+            </div>
+            <div class="inputForm" style="margin-top: 10px;">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                <input placeholder="Enter your Email" class="input" type="email" name="email" id="emailInput" required>
+            </div>
+        </div>
+
+        <div id="otpGroup" style="display: none;">
+            <div class="flex-column" style="margin-top: 10px;">
+                <label>6-Digit OTP</label>
+            </div>
+            <div class="inputForm" style="margin-top: 10px;">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                <input placeholder="Check your email for the code" class="input" type="text" name="otp" id="otpInput">
+            </div>
+        </div>
+
+        <div id="passwordGroup">
+            <div class="flex-column" style="margin-top: 10px;">
+                <label id="passwordLabel">Password</label>
+            </div>
+            <div class="inputForm" style="margin-top: 10px;">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                <input placeholder="Enter your Password" class="input" type="password" name="password" id="mainPassword" required onkeyup="validatePasswords()">
+                <div class="password-toggle" onclick="togglePasswordVisibility('mainPassword')">
+                    <svg id="eye_mainPassword" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div id="confirmPassGroup" style="display: none;">
+            <div class="flex-column" style="margin-top: 10px;">
+                <label>Confirm Password</label>
+            </div>
+            <div class="inputForm" style="margin-top: 10px;">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                <input placeholder="Re-enter your Password" class="input" type="password" name="confirm_password" id="confirmPassword" onkeyup="validatePasswords()">
+                <div class="password-toggle" onclick="togglePasswordVisibility('confirmPassword')">
+                    <svg id="eye_confirmPassword" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-row" style="margin-top: 10px;" id="loginExtras">
+            <div>
+                <input type="checkbox" id="remember">
+                <label for="remember">Remember me</label>
+            </div>
+            <span class="span" onclick="setMode('forgot_step1')">Forgot password?</span>
+        </div>
+
+        <button type="submit" class="button-submit" id="submitBtn">Sign In</button>
+
+        <p class="p" id="toggleText">Don't have an account? <span class="span" onclick="setMode('signup')">Sign Up</span></p>
+    </form>
+</div>
+
+<script>
+    let mode = 'login'; // Modes: login, signup, forgot_step1, forgot_step2
+
+    function setMode(newMode) {
+        mode = newMode;
+        const form = document.getElementById('authForm');
+        const title = document.getElementById('formTitle');
+        const nameGrp = document.getElementById('nameGroup');
+        const otpGrp = document.getElementById('otpGroup');
+        const passGrp = document.getElementById('passwordGroup');
+        const confGrp = document.getElementById('confirmPassGroup');
+        const extras = document.getElementById('loginExtras');
+        const btn = document.getElementById('submitBtn');
+        const toggle = document.getElementById('toggleText');
+        const passLabel = document.getElementById('passwordLabel');
+
+        // Reset all dynamic requirements to false first
+        document.getElementById('nameInput').required = false;
+        document.getElementById('otpInput').required = false;
+        document.getElementById('mainPassword').required = false;
+        document.getElementById('confirmPassword').required = false;
+        document.getElementById('emailInput').readOnly = false;
+
+        if (mode === 'login') {
+            form.action = "/login";
+            title.textContent = "Sign In";
+            nameGrp.style.display = "none";
+            otpGrp.style.display = "none";
+            passGrp.style.display = "block";
+            passLabel.textContent = "Password";
+            document.getElementById('mainPassword').required = true;
+            confGrp.style.display = "none";
+            extras.style.display = "flex";
+            btn.textContent = "Sign In";
+            btn.type = "submit";
+            btn.onclick = null;
+            toggle.innerHTML = `Don't have an account? <span class="span" onclick="setMode('signup')">Sign Up</span>`;
+        } 
+        else if (mode === 'signup') {
+            form.action = "/signup";
+            title.textContent = "Create Account";
+            nameGrp.style.display = "block";
+            document.getElementById('nameInput').required = true;
+            otpGrp.style.display = "none";
+            passGrp.style.display = "block";
+            passLabel.textContent = "Password";
+            document.getElementById('mainPassword').required = true;
+            confGrp.style.display = "block";
+            document.getElementById('confirmPassword').required = true;
+            extras.style.display = "none";
+            btn.textContent = "Sign Up";
+            btn.type = "submit";
+            btn.onclick = null;
+            toggle.innerHTML = `Already have an account? <span class="span" onclick="setMode('login')">Sign In</span>`;
+        } 
+        else if (mode === 'forgot_step1') {
+            title.textContent = "Reset Password";
+            nameGrp.style.display = "none";
+            otpGrp.style.display = "none";
+            passGrp.style.display = "none";
+            confGrp.style.display = "none";
+            extras.style.display = "none";
+            btn.textContent = "Send OTP";
+            btn.type = "button";
+            btn.onclick = sendOTP;
+            toggle.innerHTML = `Remembered your password? <span class="span" onclick="setMode('login')">Sign In</span>`;
+        } 
+        else if (mode === 'forgot_step2') {
+            form.action = "/reset-password";
+            title.textContent = "Set New Password";
+            document.getElementById('emailInput').readOnly = true; // Lock email so they can't change it after OTP is sent
+            nameGrp.style.display = "none";
+            otpGrp.style.display = "block";
+            document.getElementById('otpInput').required = true;
+            passGrp.style.display = "block";
+            passLabel.textContent = "New Password";
+            document.getElementById('mainPassword').required = true;
+            confGrp.style.display = "block";
+            document.getElementById('confirmPassword').required = true;
+            extras.style.display = "none";
+            btn.textContent = "Update Password";
+            btn.type = "submit";
+            btn.onclick = null;
+            toggle.innerHTML = `Cancel and go back to <span class="span" onclick="setMode('login')">Sign In</span>`;
+        }
+    }
+
+    // Handles connecting to your backend to fire off the email without refreshing the page
+    async function sendOTP() {
+        const email = document.getElementById('emailInput').value;
+        if (!email) {
+            alert("Please enter your email address first.");
+            return;
+        }
+        
+        const btn = document.getElementById('submitBtn');
+        btn.textContent = "Sending...";
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(data.message);
+                setMode('forgot_step2');
+            } else {
+                alert(data.message);
+            }
+        } catch (err) {
+            alert("An error occurred. Make sure your server is running.");
+        } finally {
+            btn.disabled = false;
+            if (mode === 'forgot_step1') btn.textContent = "Send OTP";
+        }
+    }
+
+    // Toggles Eye Icon
+    function togglePasswordVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const eyeIcon = document.getElementById('eye_' + inputId);
+        const openEyePath = "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z";
+        const closedEyePath = "M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z";
+
+        if (input.type === "password") {
+            input.type = "text";
+            eyeIcon.innerHTML = `<path d="${closedEyePath}"/>`;
+        } else {
+            input.type = "password";
+            eyeIcon.innerHTML = `<path d="${openEyePath}"/>`;
+        }
+    }
+
+    // Ensures passwords match in real-time
+    function validatePasswords() {
+        if (mode === 'signup' || mode === 'forgot_step2') {
+            const pass = document.getElementById("mainPassword");
+            const conf = document.getElementById("confirmPassword");
+            
+            if(pass.value !== conf.value) {
+                conf.setCustomValidity("Passwords do not match");
+            } else {
+                conf.setCustomValidity('');
+            }
+        }
+    }
+</script>
+{% endblock %}
