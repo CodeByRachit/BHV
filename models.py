@@ -16,6 +16,11 @@ class User(db.Model, UserMixin):
     # NEW: Link User to their uploaded entries
     entries = db.relationship('RecoveryEntry', backref='owner', lazy=True)
 
+    # --- REQUIRED CHANGE ONLY ---
+    # Stores the filename of the user's avatar.
+    profile_image = db.Column(db.String(100), nullable=False, default='default_profile.png')
+    # ----------------------------
+
 # EXISTING: Your Recovery Entry Table
 class RecoveryEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)

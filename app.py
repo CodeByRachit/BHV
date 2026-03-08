@@ -299,6 +299,67 @@ def google_authorize():
 #          PROTECTED APP ROUTES
 # ==========================================
 
+@app.route('/profile')
+@login_required
+def profile_page():
+    """Renders the personal dashboard for the logged-in user."""
+    # CHANGED: Pass the total record count down to the template
+    record_count = len(current_user.entries)
+    return render_template('profile.html', record_count=record_count)
+
+@app.route('/profile/update', methods=['POST'])
+@login_required
+def update_profile():
+    """Handles secure updates of user details and profile image."""
+    
+    # 1. Handle Text Details (Name & Email)
+    new_name = request.form.get('name')
+    new_email = request.form.get('email')
+
+    if new_name and new_name != current_user.name:
+        current_user.name = new_name
+
+    if new_email and new_email != current_user.email:
+        # Check if email is already taken by someone else
+        existing_user = User.query.filter_by(email=new_email).first()
+        if existing_user:
+            flash("That email is already in use.", "error")
+            return redirect(url_for('profile_page'))
+        current_user.email = new_email
+
+    # 2. Handle Profile Image Upload
+    file = request.files.get('profile_pic')
+    
+    # If the user actually selected a file
+    if file and file.filename != '':
+        # Use existing IMAGE_EXTENSIONS to validate the file
+        if file.filename.lower().endswith(IMAGE_EXTENSIONS):
+            # Secure the filename
+            filename = secure_filename(file.filename)
+            # Make it unique to this user to prevent overwrites
+            unique_filename = f"user_{current_user.id}_{filename}"
+            
+            # Save the file to the upload folder
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            file.save(file_path)
+            
+            # Update the user's database record with the new filename
+            current_user.profile_image = unique_filename
+        else:
+            flash("Invalid file type. Please upload a valid image.", "error")
+            return redirect(url_for('profile_page'))
+
+    # Save all changes to the database
+    try:
+        db.session.commit()
+        flash("Profile updated successfully.", "success")
+    except Exception as e:
+        app.logger.error(f"Profile Update Error: {e}")
+        db.session.rollback()
+        flash("A system error occurred while saving your changes.", "error")
+
+    return redirect(url_for('profile_page'))
+
 @app.route('/upload')
 @login_required
 def upload_page():

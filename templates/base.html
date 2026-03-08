@@ -128,6 +128,67 @@
             fill: #1a1a1a;
         }
 
+        /* ANIMATED LOGOUT BUTTON CSS (SCALED DOWN) */
+        .Btn {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            width: 38px;  /* Reduced to match Profile inner height */
+            height: 38px; /* Reduced to match Profile inner height */
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition-duration: .3s;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+            background-color: var(--danger-color);
+            text-decoration: none;
+        }
+
+        .sign {
+            width: 100%;
+            transition-duration: .3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sign svg { width: 14px; } /* Scaled logo down */
+        .sign svg path { fill: white; }
+
+        .text {
+            position: absolute;
+            right: 0%;
+            width: 0%;
+            opacity: 0;
+            color: white;
+            font-size: 0.9rem; /* Match profile text size */
+            font-weight: 600;
+            transition-duration: .3s;
+        }
+
+        .Btn:hover {
+            width: 105px; /* Scaled hover width down */
+            border-radius: 40px;
+            transition-duration: .3s;
+        }
+
+        .Btn:hover .sign {
+            width: 35%;
+            transition-duration: .3s;
+            padding-left: 10px;
+        }
+
+        .Btn:hover .text {
+            opacity: 1;
+            width: 65%;
+            transition-duration: .3s;
+            padding-right: 10px;
+        }
+
+        .Btn:active { transform: translate(2px ,2px); }
+
         /* THEME TOGGLE */
         .theme-toggle { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-primary); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; transition: color 0.3s; }
         .theme-toggle:hover { color: var(--accent-color); }
@@ -181,25 +242,32 @@
                 </div>
 
                 {% if current_user and current_user.is_authenticated %}
-                    <a href="{{ url_for('logout') }}" class="user-profile">
-                        <div class="user-profile-inner">
-                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M17 16L21 12M21 12L17 8M21 12H9M13 16V17C13 18.6569 11.6569 20 10 20H6C4.34315 20 3 18.6569 3 17V7C3 5.34315 4.34315 4 6 4H10C11.6569 4 13 5.34315 13 7V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Logout
-                        </div>
-                    </a>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <a href="{{ url_for('profile_page') }}" class="user-profile">
+                            <div class="user-profile-inner">
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                                </svg>
+                                Profile
+                            </div>
+                        </a>
+                        <a href="{{ url_for('logout') }}" class="Btn">
+                            <div class="sign">
+                                <svg viewBox="0 0 512 512">
+                                    <path d="M377.9 105.9L469.1 197.1c12.5 12.5 12.5 32.8 0 45.3l-91.2 91.2c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L369.4 256H192c-17.7 0-32-14.3-32-32s14.3-32 32-32h177.4l-36.1-36.1c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0zM160 96c17.7 0 32 14.3 32 32s-14.3 32-32 32H96c-17.7 0-32 14.3-32 32V352c0 17.7 14.3 32 32 32h64c17.7 0 32 14.3 32 32s-14.3 32-32 32H96c-53 0-96-43-96-96V160c0-53 43-96 96-96h64z"></path>
+                                </svg>
+                            </div>
+                            <div class="text">Logout</div>
+                        </a>
+                    </div>
                 {% else %}
-                    <a href="{{ url_for('login_page') }}" class="user-profile">
-                        <div class="user-profile-inner">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" stroke="none">
-                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                            </svg>
-                            Login
-                        </div>
-                    </a>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <a href="{{ url_for('login_page') }}" class="tab-link" style="text-decoration: none;">Login</a>
+                        <a href="{{ url_for('login_page') }}?mode=signup" class="user-profile">
+                            <div class="user-profile-inner">Sign Up</div>
+                        </a>
+                    </div>
                 {% endif %}
-
                 <button class="theme-toggle" type="button" title="Toggle theme" onclick="toggleTheme(event)">
                     <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="1em" height="1em" fill="currentColor" stroke-linecap="round" class="theme-toggle__classic" viewBox="0 0 32 32">
                         <clipPath id="theme-toggle__classic__cutout"><path d="M0-5h30a1 1 0 0 0 9 13v24H0Z" /></clipPath>
