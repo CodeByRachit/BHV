@@ -167,6 +167,7 @@
 <div class="glass-card">
     <h2 style="text-align: center; margin-bottom: 2rem;">Secure Ingestion</h2>
     <form action="/ingest" method="POST" enctype="multipart/form-data" id="uploadForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         
         <div class="upload-zone" id="upload-zone">
             <input type="file" name="file" id="fileInput" required onchange="handleFileSelect(this)">

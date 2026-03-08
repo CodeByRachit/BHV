@@ -37,6 +37,8 @@
 {% block content %}
 <div class="auth-container">
     <form class="form" id="authForm" action="/login" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
         <h2 id="formTitle" style="margin-bottom: 20px; color: var(--text-primary);">Sign In</h2>
         
         <div id="nameGroup" style="display: none;">
@@ -111,6 +113,42 @@
 
 <script>
     let mode = 'login'; // Modes: login, signup, forgot_step1, forgot_step2
+
+    // Helper function to show beautiful in-form alerts instead of browser alerts
+    function showFlashMessage(message, isSuccess = false) {
+        const form = document.getElementById('authForm');
+        const alertDiv = document.createElement('div');
+        
+        alertDiv.style.padding = '12px';
+        alertDiv.style.marginBottom = '15px';
+        alertDiv.style.borderRadius = '8px';
+        alertDiv.style.fontSize = '14px';
+        alertDiv.style.textAlign = 'center';
+        alertDiv.style.fontWeight = '500';
+        alertDiv.style.transition = 'all 0.5s ease';
+        
+        if (isSuccess) {
+            alertDiv.style.color = '#0f5132';
+            alertDiv.style.backgroundColor = '#d1e7dd';
+            alertDiv.style.border = '1px solid #badbcc';
+        } else {
+            alertDiv.style.color = '#842029';
+            alertDiv.style.backgroundColor = '#f8d7da';
+            alertDiv.style.border = '1px solid #f5c2c7';
+        }
+        
+        alertDiv.textContent = message;
+        
+        // Insert right below the form title
+        form.insertBefore(alertDiv, form.children[2]);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            alertDiv.style.opacity = '0';
+            alertDiv.style.transform = 'translateY(-10px)';
+            setTimeout(() => alertDiv.remove(), 500);
+        }, 5000);
+    }
 
     function setMode(newMode) {
         mode = newMode;
@@ -200,7 +238,7 @@
     async function sendOTP() {
         const email = document.getElementById('emailInput').value;
         if (!email) {
-            alert("Please enter your email address first.");
+            showFlashMessage("Please enter your email address first.", false);
             return;
         }
         
@@ -209,21 +247,27 @@
         btn.disabled = true;
 
         try {
+            // Grab the CSRF token from the hidden input to securely send with fetch
+            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
             const response = await fetch('/send-otp', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
                 body: JSON.stringify({ email: email })
             });
             const data = await response.json();
             
             if (data.success) {
-                alert(data.message);
+                showFlashMessage(data.message, true);
                 setMode('forgot_step2');
             } else {
-                alert(data.message);
+                showFlashMessage(data.message, false);
             }
         } catch (err) {
-            alert("An error occurred. Make sure your server is running.");
+            showFlashMessage("An error occurred. Make sure your server is running.", false);
         } finally {
             btn.disabled = false;
             if (mode === 'forgot_step1') btn.textContent = "Send OTP";

@@ -164,7 +164,7 @@
 
         <div class="card-img-wrapper">
              {% if entry.stored_filename.lower().endswith(image_extensions) %}
-                <img src="/static/img/{{ entry.stored_filename }}" class="card-img" loading="lazy" alt="Evidence">
+                <img src="{{ url_for('static', filename='img/' + entry.stored_filename) }}" class="card-img" loading="lazy" alt="Evidence">
             {% else %}
                 <span class="file-icon" style="font-size: 3.5rem; opacity: 0.6;">📄</span>
             {% endif %}

@@ -227,7 +227,9 @@
         </div>
     </div>
     
-    <form id="realDeleteForm" method="POST" style="display:none;"></form>
+    <form id="realDeleteForm" method="POST" style="display:none;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
 
     <main class="content-wrapper">
         {% with messages = get_flashed_messages(with_categories=true) %}

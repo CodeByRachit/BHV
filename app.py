@@ -2,6 +2,7 @@ import os
 import hashlib
 import smtplib
 import random
+import secrets  # ADDED: For cryptographically secure random numbers
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -16,7 +17,8 @@ from dotenv import load_dotenv
 # AUTH IMPORTS
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
-from itsdangerous import URLSafeTimedSerializer
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature  # CHANGED: Added specific exceptions
+from flask_wtf.csrf import CSRFProtect  # ADDED: CSRF Protection
 
 from models import db, RecoveryEntry, User
 from validators import anonymize_filename, is_authorized_upload
@@ -25,12 +27,17 @@ from validators import anonymize_filename, is_authorized_upload
 load_dotenv()
 
 app = Flask(__name__)
+csrf = CSRFProtect(app)  # ADDED: Initialize CSRF protection globally
 
 # --- Configuration ---
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vault_core.db'
 app.config['UPLOAD_FOLDER'] = 'static/img'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key')
+
+# CHANGED: Removed hardcoded fallback to secure session management
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+if not app.config['SECRET_KEY']:
+    raise RuntimeError("SECRET_KEY not set in environment variables. Please set it in your .env file.")
 
 db.init_app(app)
 
@@ -183,7 +190,7 @@ def verify_email(token):
     try:
         # Token expires in 3600 seconds (1 hour)
         email = token_serializer.loads(token, salt='email-verify', max_age=3600)
-    except Exception:
+    except (SignatureExpired, BadTimeSignature):  # CHANGED: Specific exception handling
         flash("The verification link is invalid or has expired.", "error")
         return redirect(url_for('login_page'))
 
@@ -206,7 +213,10 @@ def logout():
     return redirect(url_for('welcome'))
 
 # --- OTP and Password Reset Routes ---
+# Exempt the send_otp route from CSRF if you are calling it via fetch/AJAX without sending the CSRF token in headers. 
+# Alternatively, pass the CSRF token in your frontend fetch request.
 @app.route('/send-otp', methods=['POST'])
+@csrf.exempt  
 def send_otp():
     """Generates an OTP and emails it to the user."""
     data = request.get_json()
@@ -220,8 +230,8 @@ def send_otp():
         # We pretend it succeeded to prevent hackers from guessing emails
         return jsonify({"success": True, "message": "If the email is registered, an OTP has been sent."})
         
-    # Generate 6 digit OTP and save securely in Flask session
-    otp = str(random.randint(100000, 999999))
+    # CHANGED: Generate 6 digit OTP securely using secrets module
+    otp = str(secrets.randbelow(900000) + 100000)
     session['reset_otp'] = otp
     session['reset_email'] = email
     
