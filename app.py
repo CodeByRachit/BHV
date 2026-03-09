@@ -6,6 +6,12 @@ import secrets  # ADDED: For cryptographically secure random numbers
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# NEW IMPORTS FOR 2FA
+import pyotp
+import qrcode
+import io
+import base64
+
 from PIL import Image, UnidentifiedImageError
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -152,6 +158,13 @@ def login_page():
             if not user.is_verified:
                 flash("Please verify your email address first.", "error")
                 return redirect(url_for('login_page'))
+            
+            # --- NEW 2FA CHECK BLOCK ---
+            if user.is_2fa_enabled:
+                # Don't log them in yet! Save their ID and redirect to the 2FA screen
+                session['pending_2fa_user_id'] = user.id
+                return redirect(url_for('login_2fa_prompt'))
+            # ---------------------------
                 
             login_user(user, remember=True)
             flash(f"Welcome back, {user.name}!", "success")
@@ -161,6 +174,31 @@ def login_page():
             flash("Invalid email or password.", "error")
             
     return render_template('login.html')
+
+# --- NEW 2FA LOGIN PROMPT ROUTE ---
+@app.route('/login/2fa', methods=['GET', 'POST'])
+def login_2fa_prompt():
+    if 'pending_2fa_user_id' not in session:
+        return redirect(url_for('login_page'))
+
+    if request.method == 'POST':
+        code = request.form.get('code')
+        user = db.session.get(User, session['pending_2fa_user_id'])
+        
+        if not user:
+            return redirect(url_for('login_page'))
+
+        totp = pyotp.TOTP(user.totp_secret)
+        if totp.verify(code):
+            # Success! Now we officially log them in.
+            login_user(user, remember=True)
+            session.pop('pending_2fa_user_id', None)
+            flash("Authentication successful.", "success")
+            return redirect(url_for('welcome'))
+        else:
+            flash("Invalid 2FA code.", "error")
+            
+    return render_template('login_2fa.html')
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -289,6 +327,7 @@ def google_authorize():
         db.session.add(user)
         db.session.commit()
 
+    # NOTE: If implementing 2FA for OAuth, that check needs to go here as well.
     login_user(user, remember=True)
     flash(f"Logged in via Google as {name}", "success")
     # CHANGED: Redirects to home (welcome) after Google login
@@ -359,6 +398,77 @@ def update_profile():
         flash("A system error occurred while saving your changes.", "error")
 
     return redirect(url_for('profile_page'))
+
+# --- NEW 2FA AND PASSWORD PROFILE ROUTES ---
+@app.route('/profile/change-password', methods=['POST'])
+@login_required
+def change_password():
+    """Handles secure password changes from the profile dashboard."""
+    current_password = request.form.get('current_password')
+    new_password = request.form.get('new_password')
+    
+    # Users who signed up via Google won't have a password hash
+    if not current_user.password_hash:
+        flash("Accounts created via Google cannot change passwords here.", "error")
+        return redirect(url_for('profile_page'))
+
+    if not check_password_hash(current_user.password_hash, current_password):
+        flash("Incorrect current password.", "error")
+        return redirect(url_for('profile_page'))
+
+    current_user.password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+    db.session.commit()
+    flash("Password updated successfully.", "success")
+    return redirect(url_for('profile_page'))
+
+@app.route('/profile/setup-2fa')
+@login_required
+def setup_2fa():
+    """Generates a secret and QR code for Authenticator apps."""
+    if current_user.is_2fa_enabled:
+        flash("2FA is already enabled on your account.", "success")
+        return redirect(url_for('profile_page'))
+
+    # Generate a unique base32 secret for this user
+    if 'totp_secret' not in session:
+        session['totp_secret'] = pyotp.random_base32()
+    
+    secret = session['totp_secret']
+    totp = pyotp.TOTP(secret)
+    
+    # Create the URI that generates the QR Code
+    provisioning_uri = totp.provisioning_uri(name=current_user.email, issuer_name="Recovery Vault")
+    
+    # Generate the QR Code image in memory (no need to save a file)
+    qr = qrcode.make(provisioning_uri)
+    buf = io.BytesIO()
+    qr.save(buf, format="PNG")
+    qr_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
+    return render_template('setup_2fa.html', secret=secret, qr_base64=qr_base64)
+
+@app.route('/profile/verify-2fa', methods=['POST'])
+@login_required
+def verify_2fa_setup():
+    """Verifies the first code to confirm the user set up the app correctly."""
+    code = request.form.get('code')
+    secret = session.get('totp_secret')
+
+    if not secret:
+        return redirect(url_for('setup_2fa'))
+
+    totp = pyotp.TOTP(secret)
+    if totp.verify(code):
+        # Code is correct! Enable 2FA in the database
+        current_user.totp_secret = secret
+        current_user.is_2fa_enabled = True
+        db.session.commit()
+        session.pop('totp_secret', None)
+        flash("Two-Factor Authentication successfully enabled! 🛡️", "success")
+        return redirect(url_for('profile_page'))
+    else:
+        flash("Invalid authentication code. Please try again.", "error")
+        return redirect(url_for('setup_2fa'))
 
 @app.route('/upload')
 @login_required

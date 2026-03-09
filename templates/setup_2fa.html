@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .auth-container {
+        max-width: 500px;
+        margin: 2rem auto;
+        background: var(--card-bg, rgba(255, 255, 255, 0.05));
+        padding: 2.5rem;
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+        backdrop-filter: blur(12px);
+        text-align: center;
+        color: var(--text-primary);
+        animation: floatUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    .qr-box {
+        background: white;
+        padding: 15px;
+        border-radius: 12px;
+        display: inline-block;
+        margin: 1rem 0;
+    }
+    .input-field { 
+        width: 100%; 
+        padding: 12px 15px; 
+        border-radius: 10px; 
+        border: 1px solid var(--border-color, rgba(255,255,255,0.1)); 
+        background: rgba(0,0,0,0.2); 
+        color: var(--text-primary, #fff); 
+        font-size: 1.2rem;
+        text-align: center;
+        letter-spacing: 5px;
+        margin-bottom: 1rem;
+    }
+    .input-field:focus { outline: none; border-color: #00d2ff; }
+    .btn-submit { 
+        background: #00d2ff; color: #000; border: none; width: 100%; padding: 12px; 
+        border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem; 
+        transition: transform 0.2s; 
+    }
+    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 210, 255, 0.4); }
+    
+    /* New Instruction Box Styling */
+    .instruction-box {
+        background: rgba(0,0,0,0.2);
+        border: 1px solid var(--border-color, rgba(255,255,255,0.05));
+        border-radius: 12px;
+        padding: 15px 20px;
+        margin: 1.5rem 0;
+        text-align: left;
+    }
+    .instruction-box ol {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin: 0;
+        padding-left: 20px;
+        line-height: 1.6;
+    }
+    .instruction-box li {
+        margin-bottom: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <h2 style="font-weight: 800; margin-bottom: 10px;">Secure Your Account</h2>
+    
+    <div class="instruction-box">
+        <h4 style="color: #00d2ff; margin-top: 0; margin-bottom: 12px; font-size: 1rem;">How to set this up:</h4>
+        <ol>
+            <li>Download an authenticator app (e.g., <strong>Google Authenticator</strong> or <strong>Authy</strong>) on your smartphone.</li>
+            <li>Open the app, look for a <strong>"+"</strong> icon to add a new account, and choose <strong>"Scan QR Code"</strong>.</li>
+            <li>Scan the barcode below, then enter the 6-digit code it generates to verify.</li>
+        </ol>
+    </div>
+
+    <div class="qr-box">
+        <img src="data:image/png;base64,{{ qr_base64 }}" alt="2FA QR Code" style="max-width: 200px; height: auto;">
+    </div>
+
+    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+        Or enter this manual code:<br>
+        <strong style="color: var(--text-primary); font-family: monospace; font-size: 1rem; letter-spacing: 2px;">{{ secret }}</strong>
+    </p>
+
+    <form action="{{ url_for('verify_2fa_setup') }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label style="display: block; text-align: left; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600;">Enter 6-Digit Code</label>
+        <input class="input-field" type="text" name="code" placeholder="000000" maxlength="6" required autocomplete="off">
+        <button type="submit" class="btn-submit">Verify and Enable 2FA</button>
+    </form>
+    
+    <a href="{{ url_for('profile_page') }}" style="display: inline-block; margin-top: 15px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem;">Cancel</a>
+</div>
+{% endblock %}

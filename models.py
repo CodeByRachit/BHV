@@ -21,6 +21,11 @@ class User(db.Model, UserMixin):
     profile_image = db.Column(db.String(100), nullable=False, default='default_profile.png')
     # ----------------------------
 
+    # --- NEW REQUIRED CHANGES FOR 2FA ---
+    totp_secret = db.Column(db.String(32), nullable=True)
+    is_2fa_enabled = db.Column(db.Boolean, default=False)
+    # ------------------------------------
+
 # EXISTING: Your Recovery Entry Table
 class RecoveryEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)

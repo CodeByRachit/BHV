@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .auth-container {
+        max-width: 400px;
+        margin: 4rem auto;
+        background: var(--card-bg, rgba(255, 255, 255, 0.05));
+        padding: 2.5rem;
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+        backdrop-filter: blur(12px);
+        text-align: center;
+        color: var(--text-primary);
+        animation: floatUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    .input-field { 
+        width: 100%; padding: 12px 15px; border-radius: 10px; 
+        border: 1px solid var(--border-color, rgba(255,255,255,0.1)); 
+        background: rgba(0,0,0,0.2); color: var(--text-primary, #fff); 
+        font-size: 1.5rem; text-align: center; letter-spacing: 8px; margin-bottom: 1.5rem;
+    }
+    .input-field:focus { outline: none; border-color: #00d2ff; }
+    .btn-submit { 
+        background: #00d2ff; color: #000; border: none; width: 100%; padding: 12px; 
+        border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem; 
+        transition: transform 0.2s; 
+    }
+    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 210, 255, 0.4); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div style="font-size: 3rem; margin-bottom: 10px;">🛡️</div>
+    <h2 style="font-weight: 800; margin-bottom: 10px;">Two-Factor Authentication</h2>
+    <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 2rem;">
+        Please enter the 6-digit code from your authenticator app.
+    </p>
+
+    <form action="{{ url_for('login_2fa_prompt') }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input class="input-field" type="text" name="code" placeholder="------" maxlength="6" required autocomplete="off" autofocus>
+        <button type="submit" class="btn-submit">Authenticate</button>
+    </form>
+    
+    <a href="{{ url_for('login_page') }}" style="display: inline-block; margin-top: 15px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem;">Back to Login</a>
+</div>
+{% endblock %}

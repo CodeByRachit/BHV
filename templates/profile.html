@@ -2,43 +2,62 @@
 
 {% block extra_css %}
 <style>
-    /* Premium Glassmorphism Container */
-    .profile-card { 
-        background: var(--card-bg); 
-        padding: 3rem; 
-        border-radius: 24px; 
-        box-shadow: 0 20px 50px rgba(0,0,0,0.1); 
-        border: 1px solid var(--border-color); 
-        width: 100%; 
-        max-width: 500px; 
+    /* Two-column responsive grid layout */
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 2rem;
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
         animation: floatUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-        text-align: center;
-        backdrop-filter: blur(10px);
+    }
+
+    /* Premium Glassmorphism Cards */
+    .profile-card { 
+        background: var(--card-bg, rgba(255, 255, 255, 0.05)); 
+        padding: 2.5rem; 
+        border-radius: 20px; 
+        box-shadow: 0 15px 35px rgba(0,0,0,0.2); 
+        border: 1px solid var(--border-color, rgba(255,255,255,0.1)); 
+        backdrop-filter: blur(12px);
+    }
+
+    .card-header {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1));
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
 
     /* Interactive Avatar Section */
     .avatar-upload {
         position: relative;
-        max-width: 130px;
+        max-width: 120px;
         margin: 0 auto 2rem;
+        text-align: center;
     }
 
-    /* The visible profile picture */
     .avatar-preview {
-        width: 130px;
-        height: 130px;
+        width: 120px;
+        height: 120px;
         border-radius: 50%;
         object-fit: cover;
-        border: 4px solid #fff;
-        box-shadow: 0 10px 25px rgba(0, 104, 255, 0.15);
+        border: 3px solid var(--accent-color, #00d2ff);
+        box-shadow: 0 8px 20px rgba(0, 210, 255, 0.2);
         transition: all 0.3s ease;
+        background-color: #2a2a35; /* Fallback background */
     }
 
-    /* The sleek hover overlay indicating edit capability */
     .avatar-edit-overlay {
         position: absolute;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.5);
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -55,32 +74,73 @@
         opacity: 1;
     }
 
-    /* Form Styles (Matches Login page look) */
-    .flex-column > label { color: var(--text-primary); font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }
-    .inputForm { border: 1.5px solid #ecedec; border-radius: 12px; height: 50px; display: flex; align-items: center; padding-left: 10px; transition: 0.2s ease-in-out; background: rgba(0,0,0,0.02); margin-bottom: 1.2rem;}
-    .inputForm > svg { width: 18px; height: 18px; fill: #595959; }
-    .input { margin-left: 10px; border: none; width: 100%; height: 100%; font-size: 15px; background: transparent; color: var(--text-primary); }
-    .input:focus { outline: none; }
-    .inputForm:focus-within { border: 1.5px solid var(--accent-color); background: #fff; }
-
-    [data-theme="dark"] .inputForm { border-color: #333; background: #252525; }
-    [data-theme="dark"] .avatar-preview { border-color: #252525; }
-
-    /* Stats Box Styles */
-    .stats-box {
-        text-align: left;
-        background: rgba(0,0,0,0.03);
-        padding: 1.5rem;
-        border-radius: 16px;
-        border: 1px solid var(--border-color);
-        margin-top: 2rem;
+    /* Form Styles */
+    .input-group { margin-bottom: 1.2rem; }
+    .input-group label { display: block; color: var(--text-secondary, #aaa); font-size: 0.85rem; margin-bottom: 6px; font-weight: 600; }
+    .input-field { 
+        width: 100%; 
+        padding: 12px 15px; 
+        border-radius: 10px; 
+        border: 1px solid var(--border-color, rgba(255,255,255,0.1)); 
+        background: rgba(0,0,0,0.2); 
+        color: var(--text-primary, #fff); 
+        font-size: 1rem;
+        transition: border-color 0.2s, background 0.2s;
     }
+    .input-field:focus { outline: none; border-color: var(--accent-color, #00d2ff); background: rgba(0,0,0,0.3); }
 
     /* Animated Submit Button */
     .btn-submit { 
-        background: var(--accent-color); color: white; border: none; width: 100%; padding: 1rem; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 1rem; font-size: 1rem; transition: transform 0.2s, opacity 0.2s; 
+        background: var(--accent-color, #00d2ff); 
+        color: #000; 
+        border: none; 
+        width: 100%; 
+        padding: 12px; 
+        border-radius: 10px; 
+        font-weight: 700; 
+        cursor: pointer; 
+        margin-top: 1rem; 
+        font-size: 1rem; 
+        transition: transform 0.2s, box-shadow 0.2s; 
     }
-    .btn-submit:hover { opacity: 0.9; transform: translateY(-2px); }
+    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 210, 255, 0.4); }
+
+    /* Security Box Styles */
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px dashed rgba(255,255,255,0.05);
+        color: var(--text-primary);
+        font-size: 0.95rem;
+    }
+    .stat-row:last-child { border-bottom: none; }
+    
+    .badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+    .badge-success { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
+    .badge-danger { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
+
+    /* Action Links */
+    .action-link {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        margin-top: 10px;
+        background: rgba(255,255,255,0.03);
+        border-radius: 8px;
+        color: var(--text-primary);
+        text-decoration: none;
+        transition: background 0.2s;
+        border: 1px solid transparent;
+    }
+    .action-link:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.1); }
 
     @keyframes floatUp {
         0% { opacity: 0; transform: translateY(20px); }
@@ -90,78 +150,115 @@
 {% endblock %}
 
 {% block content %}
-<div class="profile-card">
-    <h2 style="margin-bottom: 2rem; font-weight: 800; color: var(--text-primary);">Account Dashboard</h2>
+<h2 style="text-align: center; margin-bottom: 2rem; font-weight: 800; color: var(--text-primary);">Account Dashboard</h2>
 
-    <form action="{{ url_for('update_profile') }}" method="POST" enctype="multipart/form-data">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <div class="avatar-upload">
-            <input type="file" name="profile_pic" id="profile_pic" accept="image/*" style="display: none;" onchange="previewImage(this)">
-            
-            <label for="profile_pic" class="avatar-edit-overlay">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                </svg>
-            </label>
-            
-            <img id="avatar-image" src="{{ url_for('static', filename='img/' + current_user.profile_image) }}" class="avatar-preview" alt="User Avatar">
+<div class="dashboard-container">
+    
+    <div class="profile-card">
+        <div class="card-header">
+            👤 Personal Profile
         </div>
+        <form action="{{ url_for('update_profile') }}" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <div style="text-align: left;">
-            <div class="flex-column">
+            <div class="avatar-upload">
+                <input type="file" name="profile_pic" id="profile_pic" accept="image/*" style="display: none;" onchange="previewImage(this)">
+                <label for="profile_pic" class="avatar-edit-overlay">
+                    📷
+                </label>
+                <img id="avatar-image" 
+                     src="{{ url_for('static', filename='img/' + current_user.profile_image) }}" 
+                     class="avatar-preview" 
+                     alt="User Avatar"
+                     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ current_user.name|urlencode }}&background=00d2ff&color=000&size=150';">
+            </div>
+
+            <div class="input-group">
                 <label>Full Name</label>
-            </div>
-            <div class="inputForm">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                <input class="input" type="text" name="name" value="{{ current_user.name }}" required>
+                <input class="input-field" type="text" name="name" value="{{ current_user.name }}" required>
             </div>
 
-            <div class="flex-column">
+            <div class="input-group">
                 <label>Email Address</label>
+                <input class="input-field" type="email" name="email" value="{{ current_user.email }}" required>
             </div>
-            <div class="inputForm">
-                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                <input class="input" type="email" name="email" value="{{ current_user.email }}" required>
+
+            <button type="submit" class="btn-submit">Save Changes</button>
+        </form>
+    </div>
+
+    <div class="profile-card">
+        <div class="card-header">
+            🛡️ Security & Activity
+        </div>
+        
+        <div style="margin-bottom: 2rem;">
+            <div class="stat-row">
+                <span>Account Status</span>
+                {% if current_user.is_verified %}
+                    <span class="badge badge-success">✓ Verified</span>
+                {% else %}
+                    <span class="badge badge-danger">⚠ Unverified</span>
+                {% endif %}
+            </div>
+            <div class="stat-row">
+                <span>Total Vaulted Records</span>
+                <span style="font-weight: 800; font-size: 1.1rem; color: var(--accent-color, #00d2ff);">{{ record_count }}</span>
+            </div>
+            <div class="stat-row">
+                <span>Member Since</span>
+                <span style="color: var(--text-secondary);">
+                    {{ current_user.created_at.strftime('%b %d, %Y') if current_user.created_at else 'N/A' }}
+                </span>
             </div>
         </div>
 
-        <button type="submit" class="btn-submit">Save Personal Details</button>
-    </form>
+        <div class="card-header" style="font-size: 1.1rem; border-bottom: none; margin-bottom: 0.5rem; padding-bottom: 0;">
+            Account Security
+        </div>
+        
+        <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color, rgba(255,255,255,0.05)); border-radius: 12px; padding: 15px; margin-top: 10px;">
+            <div style="font-weight: 700; margin-bottom: 12px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                🔑 Update Password
+            </div>
+            
+            <form action="{{ url_for('change_password') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="input-group" style="margin-bottom: 10px;">
+                    <input class="input-field" type="password" name="current_password" placeholder="Current Password" required style="padding: 10px; font-size: 0.9rem;">
+                </div>
+                
+                <div class="input-group" style="margin-bottom: 10px;">
+                    <input class="input-field" type="password" name="new_password" placeholder="New Secure Password" required minlength="8" style="padding: 10px; font-size: 0.9rem;">
+                </div>
+                
+                <button type="submit" class="btn-submit" style="padding: 10px; font-size: 0.9rem; margin-top: 5px;">Secure Account</button>
+            </form>
+        </div>
 
-    <div class="stats-box">
-        <h3 style="font-size: 1rem; margin-bottom: 1.2rem; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-            📊 Account Security Metrics
-        </h3>
+        {% if current_user.is_2fa_enabled %}
+            <div class="action-link" style="border-color: #2ecc71; background: rgba(46, 204, 113, 0.05);">
+                🛡️ Two-Factor Auth (2FA) is Active
+                <span style="margin-left: auto; color: #2ecc71; font-weight: bold;">✓</span>
+            </div>
+        {% else %}
+            <a href="{{ url_for('setup_2fa') }}" class="action-link" style="border-color: var(--accent-color);">
+                📱 Enable Two-Factor Auth (2FA)
+                <span style="margin-left: auto;">→</span>
+            </a>
+        {% endif %}
         
-        <div style="display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 10px;">
-            <span>Total Vaulted Records:</span>
-            <span style="font-weight: 800; color: var(--accent-color);">{{ record_count }}</span>
-        </div>
-        
-        <div style="display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--text-primary);">
-            <span>Verification Status:</span>
-            {% if current_user.is_verified %}
-                <span style="font-weight: 700; color: #2ecc71;">🛡️ Verified</span>
-            {% else %}
-                <span style="font-weight: 700; color: var(--danger-color);">⚠️ Unverified</span>
-            {% endif %}
-        </div>
     </div>
 </div>
 
 <script>
-    // Handles providing an instant visual preview of the selected image before submission
     function previewImage(input) {
         if (input.files && input.files[0]) {
             var reader = new FileReader();
-            
             reader.onload = function(e) {
-                // Find the image element and swap its source to the selected file
                 document.getElementById('avatar-image').setAttribute('src', e.target.result);
             }
-            
             reader.readAsDataURL(input.files[0]);
         }
     }
