@@ -12,8 +12,12 @@ import qrcode
 import io
 import base64
 
+# NEW IMPORTS FOR ENCRYPTION
+from cryptography.fernet import Fernet
+
 from PIL import Image, UnidentifiedImageError
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+# CHANGED: Added send_file to the Flask imports
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -44,6 +48,12 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 if not app.config['SECRET_KEY']:
     raise RuntimeError("SECRET_KEY not set in environment variables. Please set it in your .env file.")
+
+# --- Encryption Setup ---
+app.config['ENCRYPTION_KEY'] = os.environ.get('ENCRYPTION_KEY')
+if not app.config['ENCRYPTION_KEY']:
+    raise RuntimeError("ENCRYPTION_KEY not set in .env file! Please generate one and add it.")
+cipher_suite = Fernet(app.config['ENCRYPTION_KEY'])
 
 db.init_app(app)
 
@@ -541,8 +551,17 @@ def ingest_record():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         destination_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_name)
         
+        # --- NEW ENCRYPTION LOGIC ---
+        # 1. Read the raw bytes of the file
+        file_bytes = file_stream.getvalue() if hasattr(file_stream, 'getvalue') else file_stream.read()
+        
+        # 2. Encrypt the bytes using AES/Fernet
+        encrypted_data = cipher_suite.encrypt(file_bytes)
+        
+        # 3. Save the scrambled data to the disk
         with open(destination_path, 'wb') as f:
-            f.write(file_stream.getbuffer() if hasattr(file_stream, 'getbuffer') else file_stream.read())
+            f.write(encrypted_data)
+        # ----------------------------
         
         entry = RecoveryEntry(
             stored_filename=secure_name, 
@@ -584,6 +603,43 @@ def delete_record(entry_id: int):
         flash("Error deleting record.", "error")
     
     return redirect(url_for('gallery_page'))
+
+# --- NEW ROUTE: DECRYPT AND SERVE FILES ---
+@app.route('/vault/file/<filename>')
+@login_required
+def serve_file(filename):
+    """Decrypts and serves a file only to its rightful owner."""
+    entry = RecoveryEntry.query.filter_by(stored_filename=filename).first_or_404()
+    
+    # Security Check: Only the owner can decrypt their own file
+    if entry.user_id != current_user.id:
+        flash("Unauthorized access.", "error")
+        return redirect(url_for('gallery_page'))
+        
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    try:
+        # Read the scrambled data from disk
+        with open(file_path, 'rb') as f:
+            encrypted_data = f.read()
+        
+        # Decrypt it back to the original file in memory
+        decrypted_data = cipher_suite.decrypt(encrypted_data)
+        
+        # Create a temporary file in memory to send to the user
+        buffer = io.BytesIO(decrypted_data)
+        buffer.seek(0)
+        
+        # Determine if it's an image to display it properly
+        mimetype = 'application/octet-stream'
+        if filename.lower().endswith(IMAGE_EXTENSIONS):
+            mimetype = f'image/{filename.split(".")[-1].replace("jpg", "jpeg")}'
+        
+        return send_file(buffer, download_name=entry.display_name, mimetype=mimetype)
+        
+    except Exception as e:
+        app.logger.error(f"Decryption error: {e}")
+        return "Error decrypting file. It may be corrupted.", 500
 
 if __name__ == '__main__':
     with app.app_context():

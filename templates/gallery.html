@@ -164,7 +164,7 @@
 
         <div class="card-img-wrapper">
              {% if entry.stored_filename.lower().endswith(image_extensions) %}
-                <img src="{{ url_for('static', filename='img/' + entry.stored_filename) }}" class="card-img" loading="lazy" alt="Evidence">
+                <img src="{{ url_for('serve_file', filename=entry.stored_filename) }}" class="card-img" loading="lazy" alt="Evidence">
             {% else %}
                 <span class="file-icon" style="font-size: 3.5rem; opacity: 0.6;">📄</span>
             {% endif %}
@@ -186,7 +186,7 @@
                     <span style="opacity: 0.7;">{{ entry.display_name|truncate(10) }}</span>
                 </div>
 
-                <a href="{{ url_for('static', filename='img/' + entry.stored_filename) }}" download="{{ entry.display_name }}" class="download-btn">
+                <a href="{{ url_for('serve_file', filename=entry.stored_filename) }}" download="{{ entry.display_name }}" class="download-btn">
                     <span class="button__text">Download</span>
                     <span class="button__icon">
                         <svg class="svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
