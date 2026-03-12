@@ -12,8 +12,9 @@ import qrcode
 import io
 import base64
 
-# NEW IMPORTS FOR ENCRYPTION
+# NEW IMPORTS FOR ENCRYPTION & ASYNC DB
 from cryptography.fernet import Fernet
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from PIL import Image, UnidentifiedImageError
 # CHANGED: Added send_file to the Flask imports
@@ -30,7 +31,7 @@ from authlib.integrations.flask_client import OAuth
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature  # CHANGED: Added specific exceptions
 from flask_wtf.csrf import CSRFProtect  # ADDED: CSRF Protection
 
-from models import db, RecoveryEntry, User, save_to_nosql_vault, vault_collection
+from models import db, RecoveryEntry, User, save_to_nosql_vault, get_vaulted_record
 from validators import anonymize_filename, is_authorized_upload
 
 # --- NEW FASTAPI INTEGRATION IMPORTS ---
@@ -601,8 +602,11 @@ async def delete_record(entry_id: int):
         db.session.delete(entry)
         db.session.commit()
         
-        # Delete from NoSQL Vault
+        # Delete from NoSQL Vault securely inside the request loop
+        client = AsyncIOMotorClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"))
+        vault_collection = client.bhv_database.vaulted_narratives
         await vault_collection.delete_one({"filename": entry.stored_filename, "user_id": current_user.id})
+        client.close()
         
         flash("Record deleted permanently.", "success")
     except Exception as e:
@@ -625,8 +629,12 @@ async def serve_file(filename):
         return redirect(url_for('gallery_page'))
         
     try:
-        # Read the scrambled data from MongoDB NoSQL Vault
+        # Read the scrambled data from MongoDB NoSQL Vault securely inside the request loop
+        client = AsyncIOMotorClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"))
+        vault_collection = client.bhv_database.vaulted_narratives
         nosql_record = await vault_collection.find_one({"filename": filename, "user_id": current_user.id})
+        client.close()
+        
         if not nosql_record:
             flash("Record not found in Vault.", "error")
             return redirect(url_for('gallery_page'))
@@ -651,11 +659,7 @@ async def serve_file(filename):
         app.logger.error(f"Decryption error: {e}")
         return "Error decrypting file. It may be corrupted.", 500
 
-# ==========================================
-#          FASTAPI ASGI GATEWAY
-# ==========================================
-# This wraps your entire Flask app inside a FastAPI instance.
-# It allows Uvicorn to run it properly while leaving your routes untouched!
+
 fastapi_app = FastAPI(title="BHV Fast Vault Gateway")
 fastapi_app.mount("/", WSGIMiddleware(app))
 

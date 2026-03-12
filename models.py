@@ -6,13 +6,9 @@ import os
 
 db = SQLAlchemy()
 
-# --- NEW: ASYNCHRONOUS MONGODB CONFIGURATION ---
-# This fulfills the 'Flexible Storage Zone' milestone [cite: 94, 98]
+# This fulfills the 'Flexible Storage Zone' milestone
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-client = AsyncIOMotorClient(MONGO_URI)
-nosql_db = client.bhv_database
-# Collection for Zero-Knowledge encrypted narratives [cite: 19, 56]
-vault_collection = nosql_db.vaulted_narratives
+# Removed global client initialization here to prevent asyncio loop conflicts with asgiref
 
 # NEW: User Table
 class User(db.Model, UserMixin):
@@ -28,7 +24,7 @@ class User(db.Model, UserMixin):
     # Stores the filename of the user's avatar.
     profile_image = db.Column(db.String(100), nullable=False, default='default_profile.png')
 
-    # NEW REQUIRED CHANGES FOR 2FA [cite: 58, 165]
+    # NEW REQUIRED CHANGES FOR 2FA
     totp_secret = db.Column(db.String(32), nullable=True)
     is_2fa_enabled = db.Column(db.Boolean, default=False)
 
@@ -47,22 +43,36 @@ class RecoveryEntry(db.Model):
 async def save_to_nosql_vault(user_id: int, filename: str, encrypted_payload: bytes, metadata: dict = None):
     """
     Saves an encrypted document to the NoSQL vault. 
-    Fulfills 'Asynchronous Persistence' milestone[cite: 167, 181].
+    Fulfills 'Asynchronous Persistence' milestone.
     """
+    # Initialize client INSIDE the function to attach to the request's specific event loop
+    client = AsyncIOMotorClient(MONGO_URI)
+    vault_collection = client.bhv_database.vaulted_narratives
+    
     document = {
         "user_id": user_id,
         "filename": filename,
-        "payload": encrypted_payload,  # The AES-256 protected blob [cite: 168, 185]
+        "payload": encrypted_payload,  # The AES-256 protected blob
         "metadata": metadata or {},
         "vault_status": "encrypted_at_rest",
         "created_at": datetime.utcnow()
     }
     result = await vault_collection.insert_one(document)
+    
+    # Close the connection for this loop
+    client.close()
     return str(result.inserted_id)
 
 async def get_vaulted_record(record_id: str):
     """
     Retrieves a specific encrypted record from MongoDB.
-    Supports 'In-Memory Secure Streaming'[cite: 171, 188].
+    Supports 'In-Memory Secure Streaming'.
     """
-    return await vault_collection.find_one({"_id": record_id})
+    # Initialize client INSIDE the function to attach to the request's specific event loop
+    client = AsyncIOMotorClient(MONGO_URI)
+    vault_collection = client.bhv_database.vaulted_narratives
+    
+    result = await vault_collection.find_one({"_id": record_id})
+    
+    client.close()
+    return result
