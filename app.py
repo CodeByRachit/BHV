@@ -30,8 +30,12 @@ from authlib.integrations.flask_client import OAuth
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature  # CHANGED: Added specific exceptions
 from flask_wtf.csrf import CSRFProtect  # ADDED: CSRF Protection
 
-from models import db, RecoveryEntry, User
+from models import db, RecoveryEntry, User, save_to_nosql_vault, vault_collection
 from validators import anonymize_filename, is_authorized_upload
+
+# --- NEW FASTAPI INTEGRATION IMPORTS ---
+from fastapi import FastAPI
+from fastapi.middleware.wsgi import WSGIMiddleware
 
 # Load environment variables from .env file
 load_dotenv()
@@ -491,9 +495,10 @@ def gallery_page():
     entries = RecoveryEntry.query.filter_by(user_id=current_user.id).order_by(RecoveryEntry.created_at.desc()).all()
     return render_template('gallery.html', entries=entries, image_extensions=IMAGE_EXTENSIONS)
 
+# CHANGED: Added 'async' to securely await NoSQL inserts
 @app.route('/ingest', methods=['POST'])
 @login_required
-def ingest_record():
+async def ingest_record():
     file = request.files.get('file')
     narrative = request.form.get('narrative')
     
@@ -548,19 +553,20 @@ def ingest_record():
         file_stream.seek(current_pos)
         digital_fingerprint = sha256_hash.hexdigest()
 
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-        destination_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_name)
-        
-        # --- NEW ENCRYPTION LOGIC ---
+        # --- NEW ENCRYPTION LOGIC AND ASYNC NOSQL VAULTING ---
         # 1. Read the raw bytes of the file
         file_bytes = file_stream.getvalue() if hasattr(file_stream, 'getvalue') else file_stream.read()
         
         # 2. Encrypt the bytes using AES/Fernet
         encrypted_data = cipher_suite.encrypt(file_bytes)
         
-        # 3. Save the scrambled data to the disk
-        with open(destination_path, 'wb') as f:
-            f.write(encrypted_data)
+        # 3. Save the scrambled data to MongoDB NoSQL Vault asynchronously
+        await save_to_nosql_vault(
+            user_id=current_user.id,
+            filename=secure_name,
+            encrypted_payload=encrypted_data,
+            metadata={'narrative': narrative, 'file_hash': digital_fingerprint}
+        )
         # ----------------------------
         
         entry = RecoveryEntry(
@@ -581,22 +587,23 @@ def ingest_record():
         flash("System error saving the record.", "error")
         return redirect(url_for('upload_page'))
 
+# CHANGED: Added 'async' to safely drop from NoSQL
 @app.route('/delete/<int:entry_id>', methods=['POST'])
 @login_required
-def delete_record(entry_id: int):
+async def delete_record(entry_id: int):
     entry = RecoveryEntry.query.get_or_404(entry_id)
     
     if entry.user_id != current_user.id:
         flash("Unauthorized action.", "error")
         return redirect(url_for('gallery_page'))
         
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], entry.stored_filename)
-    
     try:
         db.session.delete(entry)
         db.session.commit()
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        
+        # Delete from NoSQL Vault
+        await vault_collection.delete_one({"filename": entry.stored_filename, "user_id": current_user.id})
+        
         flash("Record deleted permanently.", "success")
     except Exception as e:
         app.logger.error(f"Deletion Error: {e}")
@@ -605,9 +612,10 @@ def delete_record(entry_id: int):
     return redirect(url_for('gallery_page'))
 
 # --- NEW ROUTE: DECRYPT AND SERVE FILES ---
+# CHANGED: Added 'async' to securely fetch from NoSQL
 @app.route('/vault/file/<filename>')
 @login_required
-def serve_file(filename):
+async def serve_file(filename):
     """Decrypts and serves a file only to its rightful owner."""
     entry = RecoveryEntry.query.filter_by(stored_filename=filename).first_or_404()
     
@@ -616,12 +624,14 @@ def serve_file(filename):
         flash("Unauthorized access.", "error")
         return redirect(url_for('gallery_page'))
         
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
     try:
-        # Read the scrambled data from disk
-        with open(file_path, 'rb') as f:
-            encrypted_data = f.read()
+        # Read the scrambled data from MongoDB NoSQL Vault
+        nosql_record = await vault_collection.find_one({"filename": filename, "user_id": current_user.id})
+        if not nosql_record:
+            flash("Record not found in Vault.", "error")
+            return redirect(url_for('gallery_page'))
+
+        encrypted_data = nosql_record['payload']
         
         # Decrypt it back to the original file in memory
         decrypted_data = cipher_suite.decrypt(encrypted_data)
@@ -640,6 +650,14 @@ def serve_file(filename):
     except Exception as e:
         app.logger.error(f"Decryption error: {e}")
         return "Error decrypting file. It may be corrupted.", 500
+
+# ==========================================
+#          FASTAPI ASGI GATEWAY
+# ==========================================
+# This wraps your entire Flask app inside a FastAPI instance.
+# It allows Uvicorn to run it properly while leaving your routes untouched!
+fastapi_app = FastAPI(title="BHV Fast Vault Gateway")
+fastapi_app.mount("/", WSGIMiddleware(app))
 
 if __name__ == '__main__':
     with app.app_context():
