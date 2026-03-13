@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_login import UserMixin
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket # NEW: Added GridFS import
 import os
 
 db = SQLAlchemy()
@@ -39,7 +39,35 @@ class RecoveryEntry(db.Model):
     
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-# --- NEW: REQUIRED ASYNCHRONOUS PERSISTENCE LOGIC ---
+# --- NEW: RADICAL MINIMALISM STREAMING LOGIC ---
+async def stream_to_nosql_vault(user_id: int, filename: str, iv: bytes, metadata: dict, async_chunk_generator):
+    """
+    Radical Minimalism: Streams encrypted chunks straight into MongoDB GridFS.
+    Bypasses the 16MB document limit and keeps RAM usage near zero.
+    """
+    client = AsyncIOMotorClient(MONGO_URI)
+    db = client.bhv_database
+    
+    # GridFS automatically breaks large files into chunks in the database
+    fs = AsyncIOMotorGridFSBucket(db, bucket_name='vaulted_narratives')
+    
+    # We MUST save the IV in the metadata to decrypt this specific file later
+    full_metadata = {"user_id": user_id, "iv": iv.hex(), **(metadata or {})}
+    
+    # Open an upload stream to MongoDB
+    grid_in = fs.open_upload_stream(filename, metadata=full_metadata)
+    
+    # The Nozzle: Pull from the generator, push directly to the DB
+    async for encrypted_chunk in async_chunk_generator:
+        await grid_in.write(encrypted_chunk)
+        
+    await grid_in.close()
+    client.close()
+    
+    return str(grid_in._id)
+
+# --- EXISTING: REQUIRED ASYNCHRONOUS PERSISTENCE LOGIC ---
+# (Kept intact so your older Flask /ingest routes do not break)
 async def save_to_nosql_vault(user_id: int, filename: str, encrypted_payload: bytes, metadata: dict = None):
     """
     Saves an encrypted document to the NoSQL vault. 

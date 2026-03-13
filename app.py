@@ -4,6 +4,7 @@ import smtplib
 import secrets  # For cryptographically secure random numbers
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import gc
 
 # IMPORTS FOR 2FA
 import pyotp
@@ -604,13 +605,43 @@ async def upload_visual_narrative(
     file: UploadFile = File(...)
 ):
     try:
-        processed_payload = await secure_chunked_ingestion(file, patient_id)
+        from crypto import stream_security
+        from models import stream_to_nosql_vault
+        
+        # 1. Setup the streamable cipher
+        iv, encryptor = stream_security.get_encryptor()
+        sha256_hash = hashlib.sha256()
+
+        # 2. The Generator: This is the core of Radical Minimalism.
+        # It never holds more than 64KB in RAM at any given millisecond.
+        async def encrypting_generator():
+            while chunk := await file.read(65536):  # 64KB increments
+                sha256_hash.update(chunk)
+                # Yield encrypted data immediately
+                yield encryptor.update(chunk)       # Yield encrypted data immediately
+            yield encryptor.finalize()
+
+        # 3. Metadata for searchability
+        metadata = {
+            "patient_id": patient_id,
+            "sync_status": "pending_sync",
+            "file_extension": file.filename.split(".")[-1] if file.filename else "unknown"
+        }
+
+        # 4. Execute the stream (User -> Generator -> Encryptor -> GridFS)
+        file_id = await stream_to_nosql_vault(
+            user_id=int(patient_id),
+            filename=file.filename,
+            iv=iv,
+            metadata=metadata,
+            async_chunk_generator=encrypting_generator()
+        )
 
         return {
             "status": "success",
-            "vault_id": processed_payload["vault_id"],
-            "integrity_hash": processed_payload["integrity_hash"],
-            "sync_status": processed_payload["metadata"]["sync_status"]
+            "vault_id": file_id,
+            "integrity_hash": sha256_hash.hexdigest(),
+            "sync_status": metadata["sync_status"]
         }
         
     except Exception as e:

@@ -6,6 +6,12 @@ from fastapi import UploadFile
 from pydantic import BaseModel
 from typing import List
 
+# --- NEW IMPORTS FOR STREAMING CIPHER ---
+import secrets
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+
+# --- EXISTING FERNET SECURITY (KEPT FOR BACKWARD COMPATIBILITY) ---
 class VaultSecurity:
     def __init__(self):
         # Implementation of AES-256 (Fernet)
@@ -27,7 +33,34 @@ class VaultSecurity:
 
 security = VaultSecurity()
 
-# --- NEW BHV PRODUCTION CODE BELOW ---
+
+# --- NEW STREAMING SECURITY (RADICAL MINIMALISM) ---
+class StreamVaultSecurity:
+    def __init__(self):
+        # AES-256 requires a 32-byte key
+        key_hex = os.getenv("BHV_STREAM_KEY")
+        if not key_hex:
+            key_hex = secrets.token_hex(32)
+            os.environ["BHV_STREAM_KEY"] = key_hex
+            print(f"⚠️ IMPORTANT: SAVE THIS KEY IN YOUR .ENV FILE: BHV_STREAM_KEY={key_hex}")
+            
+        self.key = bytes.fromhex(key_hex)
+
+    def get_encryptor(self):
+        """Generates a unique Initialization Vector (IV) and a streaming encryptor."""
+        iv = secrets.token_bytes(16)
+        cipher = Cipher(algorithms.AES(self.key), modes.CTR(iv), backend=default_backend())
+        return iv, cipher.encryptor()
+
+    def get_decryptor(self, iv: bytes):
+        """Takes the file's IV and returns a streaming decryptor."""
+        cipher = Cipher(algorithms.AES(self.key), modes.CTR(iv), backend=default_backend())
+        return cipher.decryptor()
+
+stream_security = StreamVaultSecurity()
+
+
+# --- NEW BHV PRODUCTION CODE BELOW (EXISTING LOGIC KEPT INTACT) ---
 
 class SearchableMetadata(BaseModel):
     patient_id: str
