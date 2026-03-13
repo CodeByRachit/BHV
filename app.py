@@ -1,23 +1,21 @@
 import os
 import hashlib
 import smtplib
-import random
-import secrets  # ADDED: For cryptographically secure random numbers
+import secrets  # For cryptographically secure random numbers
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# NEW IMPORTS FOR 2FA
+# IMPORTS FOR 2FA
 import pyotp
 import qrcode
 import io
 import base64
 
-# NEW IMPORTS FOR ENCRYPTION & ASYNC DB
+# IMPORTS FOR ENCRYPTION & ASYNC DB
 from cryptography.fernet import Fernet
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from PIL import Image, UnidentifiedImageError
-# CHANGED: Added send_file to the Flask imports
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
@@ -28,28 +26,30 @@ from dotenv import load_dotenv
 # AUTH IMPORTS
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
-from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature  # CHANGED: Added specific exceptions
-from flask_wtf.csrf import CSRFProtect  # ADDED: CSRF Protection
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature  
+from flask_wtf.csrf import CSRFProtect  
 
-from models import db, RecoveryEntry, User, save_to_nosql_vault, get_vaulted_record
+# DB AND VALIDATOR IMPORTS
+from models import db, RecoveryEntry, User, save_to_nosql_vault
 from validators import anonymize_filename, is_authorized_upload
 
-# --- NEW FASTAPI INTEGRATION IMPORTS ---
-from fastapi import FastAPI
+# FASTAPI INTEGRATION IMPORTS 
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.wsgi import WSGIMiddleware
+from crypto import secure_chunked_ingestion 
+import uvicorn 
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
-csrf = CSRFProtect(app)  # ADDED: Initialize CSRF protection globally
+csrf = CSRFProtect(app) 
 
 # --- Configuration ---
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vault_core.db'
 app.config['UPLOAD_FOLDER'] = 'static/img'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-# CHANGED: Removed hardcoded fallback to secure session management
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 if not app.config['SECRET_KEY']:
     raise RuntimeError("SECRET_KEY not set in environment variables. Please set it in your .env file.")
@@ -70,7 +70,6 @@ login_manager.init_app(app)
 
 @login_manager.user_loader
 def load_user(user_id):
-    # FIXED: Replaced legacy Query.get() to remove the SQLAlchemy warning
     return db.session.get(User, int(user_id))
 
 # --- Google OAuth Setup ---
@@ -160,7 +159,6 @@ def welcome():
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
     if current_user.is_authenticated:
-        # CHANGED: Redirects to home (welcome) if already logged in
         return redirect(url_for('welcome'))
 
     if request.method == 'POST':
@@ -174,23 +172,18 @@ def login_page():
                 flash("Please verify your email address first.", "error")
                 return redirect(url_for('login_page'))
             
-            # --- NEW 2FA CHECK BLOCK ---
             if user.is_2fa_enabled:
-                # Don't log them in yet! Save their ID and redirect to the 2FA screen
                 session['pending_2fa_user_id'] = user.id
                 return redirect(url_for('login_2fa_prompt'))
-            # ---------------------------
                 
             login_user(user, remember=True)
             flash(f"Welcome back, {user.name}!", "success")
-            # CHANGED: Redirects to home (welcome) after successful login
             return redirect(url_for('welcome'))
         else:
             flash("Invalid email or password.", "error")
             
     return render_template('login.html')
 
-# --- NEW 2FA LOGIN PROMPT ROUTE ---
 @app.route('/login/2fa', methods=['GET', 'POST'])
 def login_2fa_prompt():
     if 'pending_2fa_user_id' not in session:
@@ -205,7 +198,6 @@ def login_2fa_prompt():
 
         totp = pyotp.TOTP(user.totp_secret)
         if totp.verify(code):
-            # Success! Now we officially log them in.
             login_user(user, remember=True)
             session.pop('pending_2fa_user_id', None)
             flash("Authentication successful.", "success")
@@ -231,7 +223,6 @@ def signup():
     db.session.add(new_user)
     db.session.commit()
 
-    # Generate and send verification email
     token = token_serializer.dumps(email, salt='email-verify')
     send_verification_email(email, token)
 
@@ -241,9 +232,8 @@ def signup():
 @app.route('/verify/<token>')
 def verify_email(token):
     try:
-        # Token expires in 3600 seconds (1 hour)
         email = token_serializer.loads(token, salt='email-verify', max_age=3600)
-    except (SignatureExpired, BadTimeSignature):  # CHANGED: Specific exception handling
+    except (SignatureExpired, BadTimeSignature): 
         flash("The verification link is invalid or has expired.", "error")
         return redirect(url_for('login_page'))
 
@@ -265,9 +255,6 @@ def logout():
     flash("You have been logged out.", "success")
     return redirect(url_for('welcome'))
 
-# --- OTP and Password Reset Routes ---
-# Exempt the send_otp route from CSRF if you are calling it via fetch/AJAX without sending the CSRF token in headers. 
-# Alternatively, pass the CSRF token in your frontend fetch request.
 @app.route('/send-otp', methods=['POST'])
 @csrf.exempt  
 def send_otp():
@@ -280,10 +267,8 @@ def send_otp():
         
     user = User.query.filter_by(email=email).first()
     if not user:
-        # We pretend it succeeded to prevent hackers from guessing emails
         return jsonify({"success": True, "message": "If the email is registered, an OTP has been sent."})
         
-    # CHANGED: Generate 6 digit OTP securely using secrets module
     otp = str(secrets.randbelow(900000) + 100000)
     session['reset_otp'] = otp
     session['reset_email'] = email
@@ -302,25 +287,21 @@ def reset_password():
         flash("All fields are required.", "error")
         return redirect(url_for('login_page'))
 
-    # Verify the OTP matches the one we saved in the session
     if session.get('reset_email') != email or session.get('reset_otp') != otp:
         flash("Invalid or expired OTP.", "error")
         return redirect(url_for('login_page'))
     
     user = User.query.filter_by(email=email).first()
     if user:
-        # Hash the new password and save it
         user.password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
         db.session.commit()
         flash("Password reset successfully! You can now log in.", "success")
         
-        # Clear the OTP from session so it can't be reused
         session.pop('reset_otp', None)
         session.pop('reset_email', None)
     
     return redirect(url_for('login_page'))
 
-# --- Google OAuth Routes ---
 @app.route('/login/google')
 def google_login():
     redirect_uri = url_for('google_authorize', _external=True)
@@ -337,15 +318,12 @@ def google_authorize():
     user = User.query.filter_by(email=email).first()
 
     if not user:
-        # Create user automatically, mark as verified since Google vouches for them
         user = User(name=name, email=email, is_verified=True)
         db.session.add(user)
         db.session.commit()
 
-    # NOTE: If implementing 2FA for OAuth, that check needs to go here as well.
     login_user(user, remember=True)
     flash(f"Logged in via Google as {name}", "success")
-    # CHANGED: Redirects to home (welcome) after Google login
     return redirect(url_for('welcome'))
 
 
@@ -356,17 +334,12 @@ def google_authorize():
 @app.route('/profile')
 @login_required
 def profile_page():
-    """Renders the personal dashboard for the logged-in user."""
-    # CHANGED: Pass the total record count down to the template
     record_count = len(current_user.entries)
     return render_template('profile.html', record_count=record_count)
 
 @app.route('/profile/update', methods=['POST'])
 @login_required
 def update_profile():
-    """Handles secure updates of user details and profile image."""
-    
-    # 1. Handle Text Details (Name & Email)
     new_name = request.form.get('name')
     new_email = request.form.get('email')
 
@@ -374,36 +347,27 @@ def update_profile():
         current_user.name = new_name
 
     if new_email and new_email != current_user.email:
-        # Check if email is already taken by someone else
         existing_user = User.query.filter_by(email=new_email).first()
         if existing_user:
             flash("That email is already in use.", "error")
             return redirect(url_for('profile_page'))
         current_user.email = new_email
 
-    # 2. Handle Profile Image Upload
     file = request.files.get('profile_pic')
     
-    # If the user actually selected a file
     if file and file.filename != '':
-        # Use existing IMAGE_EXTENSIONS to validate the file
         if file.filename.lower().endswith(IMAGE_EXTENSIONS):
-            # Secure the filename
             filename = secure_filename(file.filename)
-            # Make it unique to this user to prevent overwrites
             unique_filename = f"user_{current_user.id}_{filename}"
             
-            # Save the file to the upload folder
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
             file.save(file_path)
             
-            # Update the user's database record with the new filename
             current_user.profile_image = unique_filename
         else:
             flash("Invalid file type. Please upload a valid image.", "error")
             return redirect(url_for('profile_page'))
 
-    # Save all changes to the database
     try:
         db.session.commit()
         flash("Profile updated successfully.", "success")
@@ -414,15 +378,12 @@ def update_profile():
 
     return redirect(url_for('profile_page'))
 
-# --- NEW 2FA AND PASSWORD PROFILE ROUTES ---
 @app.route('/profile/change-password', methods=['POST'])
 @login_required
 def change_password():
-    """Handles secure password changes from the profile dashboard."""
     current_password = request.form.get('current_password')
     new_password = request.form.get('new_password')
     
-    # Users who signed up via Google won't have a password hash
     if not current_user.password_hash:
         flash("Accounts created via Google cannot change passwords here.", "error")
         return redirect(url_for('profile_page'))
@@ -439,22 +400,18 @@ def change_password():
 @app.route('/profile/setup-2fa')
 @login_required
 def setup_2fa():
-    """Generates a secret and QR code for Authenticator apps."""
     if current_user.is_2fa_enabled:
         flash("2FA is already enabled on your account.", "success")
         return redirect(url_for('profile_page'))
 
-    # Generate a unique base32 secret for this user
     if 'totp_secret' not in session:
         session['totp_secret'] = pyotp.random_base32()
     
     secret = session['totp_secret']
     totp = pyotp.TOTP(secret)
     
-    # Create the URI that generates the QR Code
     provisioning_uri = totp.provisioning_uri(name=current_user.email, issuer_name="Recovery Vault")
     
-    # Generate the QR Code image in memory (no need to save a file)
     qr = qrcode.make(provisioning_uri)
     buf = io.BytesIO()
     qr.save(buf, format="PNG")
@@ -465,7 +422,6 @@ def setup_2fa():
 @app.route('/profile/verify-2fa', methods=['POST'])
 @login_required
 def verify_2fa_setup():
-    """Verifies the first code to confirm the user set up the app correctly."""
     code = request.form.get('code')
     secret = session.get('totp_secret')
 
@@ -474,7 +430,6 @@ def verify_2fa_setup():
 
     totp = pyotp.TOTP(secret)
     if totp.verify(code):
-        # Code is correct! Enable 2FA in the database
         current_user.totp_secret = secret
         current_user.is_2fa_enabled = True
         db.session.commit()
@@ -496,7 +451,6 @@ def gallery_page():
     entries = RecoveryEntry.query.filter_by(user_id=current_user.id).order_by(RecoveryEntry.created_at.desc()).all()
     return render_template('gallery.html', entries=entries, image_extensions=IMAGE_EXTENSIONS)
 
-# CHANGED: Added 'async' to securely await NoSQL inserts
 @app.route('/ingest', methods=['POST'])
 @login_required
 async def ingest_record():
@@ -532,7 +486,6 @@ async def ingest_record():
                 clean_image = Image.new(img.mode, img.size)
                 clean_image.putdata(data)
                 
-                import io
                 clean_buffer = io.BytesIO()
                 fmt = img.format if img.format else 'PNG'
                 clean_image.save(clean_buffer, format=fmt)
@@ -554,21 +507,15 @@ async def ingest_record():
         file_stream.seek(current_pos)
         digital_fingerprint = sha256_hash.hexdigest()
 
-        # --- NEW ENCRYPTION LOGIC AND ASYNC NOSQL VAULTING ---
-        # 1. Read the raw bytes of the file
         file_bytes = file_stream.getvalue() if hasattr(file_stream, 'getvalue') else file_stream.read()
-        
-        # 2. Encrypt the bytes using AES/Fernet
         encrypted_data = cipher_suite.encrypt(file_bytes)
         
-        # 3. Save the scrambled data to MongoDB NoSQL Vault asynchronously
         await save_to_nosql_vault(
             user_id=current_user.id,
             filename=secure_name,
             encrypted_payload=encrypted_data,
             metadata={'narrative': narrative, 'file_hash': digital_fingerprint}
         )
-        # ----------------------------
         
         entry = RecoveryEntry(
             stored_filename=secure_name, 
@@ -588,7 +535,6 @@ async def ingest_record():
         flash("System error saving the record.", "error")
         return redirect(url_for('upload_page'))
 
-# CHANGED: Added 'async' to safely drop from NoSQL
 @app.route('/delete/<int:entry_id>', methods=['POST'])
 @login_required
 async def delete_record(entry_id: int):
@@ -602,7 +548,6 @@ async def delete_record(entry_id: int):
         db.session.delete(entry)
         db.session.commit()
         
-        # Delete from NoSQL Vault securely inside the request loop
         client = AsyncIOMotorClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"))
         vault_collection = client.bhv_database.vaulted_narratives
         await vault_collection.delete_one({"filename": entry.stored_filename, "user_id": current_user.id})
@@ -615,21 +560,16 @@ async def delete_record(entry_id: int):
     
     return redirect(url_for('gallery_page'))
 
-# --- NEW ROUTE: DECRYPT AND SERVE FILES ---
-# CHANGED: Added 'async' to securely fetch from NoSQL
 @app.route('/vault/file/<filename>')
 @login_required
 async def serve_file(filename):
-    """Decrypts and serves a file only to its rightful owner."""
     entry = RecoveryEntry.query.filter_by(stored_filename=filename).first_or_404()
     
-    # Security Check: Only the owner can decrypt their own file
     if entry.user_id != current_user.id:
         flash("Unauthorized access.", "error")
         return redirect(url_for('gallery_page'))
         
     try:
-        # Read the scrambled data from MongoDB NoSQL Vault securely inside the request loop
         client = AsyncIOMotorClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"))
         vault_collection = client.bhv_database.vaulted_narratives
         nosql_record = await vault_collection.find_one({"filename": filename, "user_id": current_user.id})
@@ -640,15 +580,11 @@ async def serve_file(filename):
             return redirect(url_for('gallery_page'))
 
         encrypted_data = nosql_record['payload']
-        
-        # Decrypt it back to the original file in memory
         decrypted_data = cipher_suite.decrypt(encrypted_data)
         
-        # Create a temporary file in memory to send to the user
         buffer = io.BytesIO(decrypted_data)
         buffer.seek(0)
         
-        # Determine if it's an image to display it properly
         mimetype = 'application/octet-stream'
         if filename.lower().endswith(IMAGE_EXTENSIONS):
             mimetype = f'image/{filename.split(".")[-1].replace("jpg", "jpeg")}'
@@ -661,6 +597,25 @@ async def serve_file(filename):
 
 
 fastapi_app = FastAPI(title="BHV Fast Vault Gateway")
+
+@fastapi_app.post("/api/vault/upload")
+async def upload_visual_narrative(
+    patient_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+    try:
+        processed_payload = await secure_chunked_ingestion(file, patient_id)
+
+        return {
+            "status": "success",
+            "vault_id": processed_payload["vault_id"],
+            "integrity_hash": processed_payload["integrity_hash"],
+            "sync_status": processed_payload["metadata"]["sync_status"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Streaming failed: {str(e)}")
+
 fastapi_app.mount("/", WSGIMiddleware(app))
 
 if __name__ == '__main__':
@@ -668,4 +623,4 @@ if __name__ == '__main__':
         db.create_all()
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
-    app.run(port=8000)
+    uvicorn.run(fastapi_app, host="127.0.0.1", port=8000)
