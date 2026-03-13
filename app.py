@@ -15,7 +15,7 @@ import base64
 # IMPORTS FOR ENCRYPTION & ASYNC DB
 from cryptography.fernet import Fernet
 from motor.motor_asyncio import AsyncIOMotorClient
-
+from fastapi.responses import StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -646,6 +646,51 @@ async def upload_visual_narrative(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Streaming failed: {str(e)}")
+    
+
+
+@fastapi_app.get("/api/vault/download/{file_id}")
+async def download_visual_narrative(
+    file_id: str,
+    patient_id: str # We pass this to verify ownership
+):
+    from crypto import stream_security
+    from models import get_nosql_download_stream
+    
+    try:
+        # 1. Retrieve the DB stream and the Decryption IV
+        grid_out, iv, db_client, filename = await get_nosql_download_stream(file_id, int(patient_id))
+    except Exception as e:
+        raise HTTPException(status_code=403, detail=str(e))
+        
+    # 2. Initialize the decryptor using the file's unique IV
+    decryptor = stream_security.get_decryptor(iv)
+    
+    # 3. The Generator (The Decryption Nozzle)
+    async def decrypting_generator():
+        try:
+            # GridFS naturally chunks data (usually 255KB). We read one chunk at a time.
+            while chunk := await grid_out.readchunk(): 
+                decrypted_chunk = decryptor.update(chunk)
+                
+                # Yield to the browser immediately
+                yield decrypted_chunk
+                
+            # Finalize the cipher stream
+            yield decryptor.finalize()
+            
+        finally:
+            # CLEANUP: This block runs even if the user cancels the download halfway through.
+            # It ensures we never leak database connections or memory.
+            db_client.close()
+            gc.collect()
+            
+    # 4. Stream the response directly to the client
+    return StreamingResponse(
+        decrypting_generator(), 
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="decrypted_{filename}"'}
+    )
 
 fastapi_app.mount("/", WSGIMiddleware(app))
 

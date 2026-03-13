@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from bson import ObjectId
 from flask_login import UserMixin
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket # NEW: Added GridFS import
 import os
@@ -104,3 +105,38 @@ async def get_vaulted_record(record_id: str):
     
     client.close()
     return result
+
+
+
+# --- RADICAL MINIMALISM: DOWNLOAD STREAM ---
+async def get_nosql_download_stream(file_id: str, user_id: int):
+    """
+    Opens a GridFS download stream and retrieves the decryption IV.
+    """
+    client = AsyncIOMotorClient(MONGO_URI)
+    db = client.bhv_database
+    fs = AsyncIOMotorGridFSBucket(db, bucket_name='vaulted_narratives')
+    
+    try:
+        # 1. Open the stream by its MongoDB ObjectId
+        grid_out = await fs.open_download_stream(ObjectId(file_id))
+    except Exception:
+        client.close()
+        raise ValueError("File not found in Vault.")
+        
+    # 2. Zero-Trust Verification: Ensure this user owns the file
+    metadata = grid_out.metadata or {}
+    if metadata.get("user_id") != user_id:
+        client.close()
+        raise PermissionError("Unauthorized access to this vault record.")
+        
+    # 3. Extract the IV required for decryption
+    iv_hex = metadata.get("iv")
+    if not iv_hex:
+        client.close()
+        raise ValueError("Decryption IV missing from file metadata.")
+        
+    iv = bytes.fromhex(iv_hex)
+    
+    # We return the client so the FastAPI generator can close it when the download finishes
+    return grid_out, iv, client, grid_out.filename
