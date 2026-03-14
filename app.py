@@ -39,6 +39,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.wsgi import WSGIMiddleware
 from crypto import secure_chunked_ingestion 
 import uvicorn 
+from fastapi import Query
+from typing import Optional
 
 # Load environment variables from .env file
 load_dotenv()
@@ -630,7 +632,7 @@ async def upload_visual_narrative(
 
         # 4. Execute the stream (User -> Generator -> Encryptor -> GridFS)
         file_id = await stream_to_nosql_vault(
-            user_id=int(patient_id),
+            user_id=patient_id,
             filename=file.filename,
             iv=iv,
             metadata=metadata,
@@ -692,8 +694,73 @@ async def download_visual_narrative(
         headers={"Content-Disposition": f'attachment; filename="decrypted_{filename}"'}
     )
 
-fastapi_app.mount("/", WSGIMiddleware(app))
 
+
+@fastapi_app.get("/api/vault/search")
+async def search_vault(
+    patient_id: Optional[str] = Query(None, description="Filter by patient ID"),
+    sync_status: Optional[str] = Query(None, description="Filter by sync state (e.g., pending_sync)"),
+    file_extension: Optional[str] = Query(None, description="Filter by extension (e.g., enc, bin)"),
+    skip: int = Query(0, ge=0, description="Number of records to skip for pagination"),
+    limit: int = Query(10, ge=1, le=100, description="Max records to return per page")
+):
+    """
+    Search and filter vault metadata using memory-safe database pagination.
+    """
+    # 1. Initialize MongoDB client inside the function to prevent asyncio conflicts
+    MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+    client = AsyncIOMotorClient(MONGO_URI)
+    mongo_db = client.bhv_database
+    
+    # GridFS stores file metadata in the ".files" collection
+    files_collection = mongo_db["vaulted_narratives.files"] 
+    
+    try:
+        # 2. Build the dynamic MongoDB query
+        query = {}
+        
+        if patient_id:
+            query["metadata.patient_id"] = patient_id 
+            
+        if sync_status:
+            query["metadata.sync_status"] = sync_status
+            
+        if file_extension:
+            # FIX: Added 'r' for raw string to prevent the SyntaxWarning
+            query["filename"] = {"$regex": rf"\.{file_extension}$", "$options": "i"}
+
+        # 3. Get the total count for frontend pagination math
+        total_records = await files_collection.count_documents(query)
+
+        # 4. Fetch ONLY the requested page of data (The Radical Minimalism approach)
+        cursor = files_collection.find(query).skip(skip).limit(limit)
+        
+        results = []
+        async for document in cursor:
+            results.append({
+                "vault_id": str(document["_id"]),
+                "filename": document.get("filename"),
+                "patient_id": document.get("metadata", {}).get("patient_id") or document.get("metadata", {}).get("user_id"),
+                "sync_status": document.get("metadata", {}).get("sync_status"),
+                "size_bytes": document.get("length"),
+                "upload_date": document.get("uploadDate").isoformat() if document.get("uploadDate") else None
+            })
+
+        return {
+            "status": "success",
+            "pagination": {
+                "total_records": total_records,
+                "skip": skip,
+                "limit": limit,
+                "has_more": (skip + limit) < total_records
+            },
+            "data": results
+        }
+    finally:
+        # Always close the DB connection to prevent memory leaks!
+        client.close()
+
+fastapi_app.mount("/", WSGIMiddleware(app))
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
