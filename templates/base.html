@@ -69,10 +69,12 @@
         }
         [data-theme="dark"] .glider { background-color: rgba(255, 255, 255, 0.15); }
 
-        /* Glider Logic */
+        /* Glider Logic - UPDATED to handle up to 5 tabs */
         .tabs:has(.tab-link:nth-child(1).active) .glider { transform: translateX(0); }
         .tabs:has(.tab-link:nth-child(2).active) .glider { transform: translateX(100%); }
         .tabs:has(.tab-link:nth-child(3).active) .glider { transform: translateX(200%); }
+        .tabs:has(.tab-link:nth-child(4).active) .glider { transform: translateX(300%); }
+        .tabs:has(.tab-link:nth-child(5).active) .glider { transform: translateX(400%); }
 
         /* USER PROFILE BUTTON CSS */
         .user-profile {
@@ -234,10 +236,22 @@
             </a>
 
             <div class="nav-right">
+                
                 <div class="tabs">
                     <a href="{{ url_for('welcome') }}" class="tab-link {% if request.endpoint == 'welcome' %}active{% endif %}">Home</a>
                     <a href="{{ url_for('upload_page') }}" class="tab-link {% if request.endpoint == 'upload_page' %}active{% endif %}">Upload</a>
                     <a href="{{ url_for('gallery_page') }}" class="tab-link {% if request.endpoint == 'gallery_page' %}active{% endif %}">Gallery</a>
+                    
+                    {% if current_user and current_user.is_authenticated %}
+                        {% if current_user.role == 'admin' %}
+                            <a href="{{ url_for('admin_dashboard') }}" class="tab-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">Admin</a>
+                        {% endif %}
+                        
+                        {% if current_user.role == 'owner' %}
+                            <a href="{{ url_for('owner_dashboard') }}" class="tab-link {% if request.endpoint == 'owner_dashboard' %}active{% endif %}">Owner</a>
+                        {% endif %}
+                    {% endif %}
+                    
                     <span class="glider"></span>
                 </div>
 

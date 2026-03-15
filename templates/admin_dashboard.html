@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    :root { --w-bg: #ffffff; --w-border: 1px solid rgba(0,0,0,0.06); --t-muted: #888; }
+    [data-theme="dark"] { --w-bg: rgba(30, 30, 45, 0.7); --w-border: 1px solid rgba(255,255,255,0.05); --t-muted: #a0a0b0; }
+
+    .dash-container { width: 100%; max-width: 1000px; text-align: left; }
+    .header-area { margin-bottom: 2rem; }
+    .header-area h2 { font-weight: 800; text-transform: uppercase; margin: 0; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .card-v3 { background: var(--w-bg); border: var(--w-border); border-radius: 24px; padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.02); backdrop-filter: blur(10px); }
+    
+    .val-text { font-size: 3rem; font-weight: 800; margin: 0.5rem 0; color: var(--text-primary); }
+    .label-text { font-size: 0.85rem; font-weight: 700; color: var(--t-muted); text-transform: uppercase; }
+
+    .feed-card { background: var(--w-bg); border: var(--w-border); border-radius: 24px; padding: 2rem; margin-bottom: 2rem; }
+    .feed-row { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+    [data-theme="dark"] .feed-row { border-bottom: 1px solid rgba(255,255,255,0.05); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="dash-container">
+    <div class="header-area">
+        <h2>Admin Overview</h2>
+        <p style="color: var(--t-muted);">System growth and vault metrics.</p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="card-v3">
+            <span class="label-text">Total Patients</span>
+            <h3 class="val-text">{{ stats.total_patients }}</h3>
+        </div>
+        <div class="card-v3">
+            <span class="label-text">Vaulted Records</span>
+            <h3 class="val-text">{{ stats.total_records }}</h3>
+        </div>
+    </div>
+
+    <div class="feed-card">
+        <span class="label-text" style="color: var(--text-primary);">Patient Registration Growth</span>
+        <div style="height: 250px;"><canvas id="adminGrowthChart"></canvas></div>
+    </div>
+
+    <div class="feed-card">
+        <span class="label-text" style="color: var(--text-primary); margin-bottom: 1rem; display: block;">Recent Vault Activity</span>
+        {% for activity in recent_activity %}
+        <div class="feed-row">
+            <div>
+                <p style="font-weight: 700; margin: 0;">{{ activity.display_name }}</p>
+                <p style="font-size: 0.8rem; color: var(--t-muted); margin: 0;">Patient ID: {{ activity.user_id }} • {{ activity.created_at.strftime('%H:%M, %b %d') }}</p>
+            </div>
+            <div style="color: #2ecc71; font-weight: 800; font-size: 0.8rem;">SECURED</div>
+        </div>
+        {% else %}
+        <p style="text-align: center; color: var(--t-muted); padding: 2rem;">No system activity recorded.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<script id="growth-data" type="application/json">
+    {{ graph_data | tojson | safe }}
+</script>
+
+<script>
+    // Pure JavaScript reads the data cleanly from the hidden tag
+    const rawData = document.getElementById('growth-data').textContent;
+    const gData = JSON.parse(rawData);
+
+    const ctx = document.getElementById('adminGrowthChart').getContext('2d');
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tColor = isDark ? '#a0a0b0' : '#888';
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: gData.labels,
+            datasets: [
+                { label: 'New Patients', data: gData.user_data, backgroundColor: '#3498db', borderRadius: 6 },
+                { label: 'New Staff', data: gData.admin_data, backgroundColor: '#e74c3c', borderRadius: 6 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { color: tColor, stepSize: 1 }, grid: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' } },
+                x: { ticks: { color: tColor }, grid: { display: false } }
+            },
+            plugins: { legend: { labels: { color: tColor, font: { weight: 'bold' } } } }
+        }
+    });
+</script>
+{% endblock %}

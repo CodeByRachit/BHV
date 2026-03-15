@@ -5,6 +5,8 @@ import secrets  # For cryptographically secure random numbers
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import gc
+from functools import wraps # NEW: For creating custom security decorators
+from datetime import datetime, timedelta
 
 # IMPORTS FOR 2FA
 import pyotp
@@ -17,7 +19,7 @@ from cryptography.fernet import Fernet
 from motor.motor_asyncio import AsyncIOMotorClient
 from fastapi.responses import StreamingResponse
 from PIL import Image, UnidentifiedImageError
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file, abort # Added abort
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -35,11 +37,10 @@ from models import db, RecoveryEntry, User, save_to_nosql_vault
 from validators import anonymize_filename, is_authorized_upload
 
 # FASTAPI INTEGRATION IMPORTS 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Depends
 from fastapi.middleware.wsgi import WSGIMiddleware
 from crypto import secure_chunked_ingestion 
 import uvicorn 
-from fastapi import Query
 from typing import Optional
 
 # Load environment variables from .env file
@@ -74,6 +75,26 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+# ==========================================
+#          CUSTOM ROLE DECORATORS (RBAC)
+# ==========================================
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.role not in ['admin', 'owner']:
+            abort(403) # Returns a 403 Forbidden error
+        return f(*args, **kwargs)
+    return decorated_function
+
+def owner_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.role != 'owner':
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
 
 # --- Google OAuth Setup ---
 oauth = OAuth(app)
@@ -329,6 +350,96 @@ def google_authorize():
     flash(f"Logged in via Google as {name}", "success")
     return redirect(url_for('welcome'))
 
+# ==========================================
+#          PROTECTED APP ROUTES
+# ==========================================
+
+# --- ADMIN DASHBOARD ---
+from datetime import datetime, timedelta
+
+# --- REAL-TIME GROWTH DATA HELPER ---
+def get_user_growth_data():
+    """Calculates real registrations over the last 7 days."""
+    today = datetime.utcnow().date()
+    dates = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+    labels = [d.strftime('%b %d') for d in dates]
+    
+    admin_data = [0] * 7
+    user_data = [0] * 7
+    
+    all_users = User.query.all()
+    for u in all_users:
+        if u.created_at:
+            u_date = u.created_at.date()
+            if u_date in dates:
+                idx = dates.index(u_date)
+                if u.role == 'admin':
+                    admin_data[idx] += 1
+                elif u.role == 'user':
+                    user_data[idx] += 1
+                    
+    return {"labels": labels, "admin_data": admin_data, "user_data": user_data}
+
+# --- ADMIN DASHBOARD ---
+@app.route('/admin/dashboard')
+@login_required
+@admin_required
+def admin_dashboard():
+    # 1. Real Stats
+    patients_count = User.query.filter_by(role='user').count()
+    records_count = RecoveryEntry.query.count()
+    recent_activity = RecoveryEntry.query.order_by(RecoveryEntry.created_at.desc()).limit(5).all()
+    
+    # 2. Bundle specifically for the template
+    stats = {"total_patients": patients_count, "total_records": records_count}
+    graph_data = get_user_growth_data()
+    
+    return render_template(
+        'admin_dashboard.html', 
+        user=current_user, 
+        stats=stats, 
+        recent_activity=recent_activity,
+        graph_data=graph_data
+    )
+
+# --- OWNER DASHBOARD ---
+@app.route('/owner/dashboard')
+@login_required
+@owner_required
+def owner_dashboard():
+    all_users = User.query.all()
+    active_admins = sum(1 for u in all_users if u.role == 'admin')
+    
+    system_health = {"db_status": "Online", "active_admins": active_admins}
+    graph_data = get_user_growth_data()
+    
+    return render_template(
+        'owner_dashboard.html', 
+        user=current_user, 
+        health=system_health,
+        all_users=all_users,
+        graph_data=graph_data
+    )
+
+# --- UPDATE USER ROLE ROUTE ---
+@app.route('/owner/update-role/<int:target_user_id>', methods=['POST'])
+@login_required
+@owner_required
+def update_user_role(target_user_id):
+    target_user = User.query.get_or_404(target_user_id)
+    new_role = request.form.get('role')
+
+    # Security: Prevent self-demotion or owner modification
+    if target_user.role == 'owner':
+        flash("System Owner privileges are immutable.", "error")
+    elif new_role in ['user', 'admin']:
+        target_user.role = new_role
+        db.session.commit()
+        flash(f"Access level for {target_user.name} changed to {new_role}.", "success")
+    else:
+        flash("Invalid role assignment.", "error")
+
+    return redirect(url_for('owner_dashboard'))
 
 # ==========================================
 #          PROTECTED APP ROUTES
@@ -599,6 +710,9 @@ async def serve_file(filename):
         return "Error decrypting file. It may be corrupted.", 500
 
 
+# ==========================================
+#          FASTAPI (API & STREAMING) ROUTES
+# ==========================================
 fastapi_app = FastAPI(title="BHV Fast Vault Gateway")
 
 @fastapi_app.post("/api/vault/upload")
@@ -620,7 +734,7 @@ async def upload_visual_narrative(
             while chunk := await file.read(65536):  # 64KB increments
                 sha256_hash.update(chunk)
                 # Yield encrypted data immediately
-                yield encryptor.update(chunk)       # Yield encrypted data immediately
+                yield encryptor.update(chunk)       
             yield encryptor.finalize()
 
         # 3. Metadata for searchability
@@ -649,7 +763,6 @@ async def upload_visual_narrative(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Streaming failed: {str(e)}")
     
-
 
 @fastapi_app.get("/api/vault/download/{file_id}")
 async def download_visual_narrative(
@@ -693,7 +806,6 @@ async def download_visual_narrative(
         media_type="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="decrypted_{filename}"'}
     )
-
 
 
 @fastapi_app.get("/api/vault/search")
@@ -761,9 +873,30 @@ async def search_vault(
         client.close()
 
 fastapi_app.mount("/", WSGIMiddleware(app))
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    
+        
+        # --- NEW: AUTO-BOOTSTRAP THE OWNER ACCOUNT ---
+        owner_email = os.environ.get("OWNER_EMAIL")
+        owner_pass = os.environ.get("OWNER_PASSWORD")
+        
+        if owner_email and owner_pass:
+            owner_user = User.query.filter_by(email=owner_email).first()
+            if not owner_user:
+                hashed_pw = generate_password_hash(owner_pass, method='pbkdf2:sha256')
+                # Create the owner, skipping email verification so you can log in instantly
+                new_owner = User(
+                    name="System Architect", 
+                    email=owner_email, 
+                    password_hash=hashed_pw, 
+                    role="owner", 
+                    is_verified=True 
+                )
+                db.session.add(new_owner)
+                db.session.commit()
+                print(f"👑 Owner account ({owner_email}) securely bootstrapped from .env!")
+
     uvicorn.run(fastapi_app, host="127.0.0.1", port=8000)

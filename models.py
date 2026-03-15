@@ -20,6 +20,9 @@ class User(db.Model, UserMixin):
     is_verified = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # NEW: Role-Based Access Control (RBAC)
+    role = db.Column(db.String(20), nullable=False, default="user")
+    
     entries = db.relationship('RecoveryEntry', backref='owner', lazy=True)
 
     # Stores the filename of the user's avatar.
@@ -126,7 +129,7 @@ async def get_nosql_download_stream(file_id: str, user_id: int):
         
     # 2. Zero-Trust Verification: Ensure this user owns the file
     metadata = grid_out.metadata or {}
-    if metadata.get("user_id") != user_id:
+    if str(metadata.get("user_id")) != str(user_id):  # FIX: Convert both to strings to ensure they match!
         client.close()
         raise PermissionError("Unauthorized access to this vault record.")
         

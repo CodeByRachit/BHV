@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    :root { --w-bg: #ffffff; --w-border: 1px solid rgba(0,0,0,0.06); --t-muted: #888; }
+    [data-theme="dark"] { --w-bg: rgba(30, 30, 45, 0.7); --w-border: 1px solid rgba(255,255,255,0.05); --t-muted: #a0a0b0; }
+
+    .dash-container { width: 100%; max-width: 1100px; text-align: left; }
+    .header-area h2 { font-weight: 800; background: linear-gradient(to right, #ff4757, #ff6b81); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+    
+    /* Theme-Adaptive Health Widget */
+    .health-bar {
+        background: var(--w-bg); border: var(--w-border); border-radius: 24px; padding: 2rem; display: flex; justify-content: space-around; margin: 2rem 0; box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+    }
+    .h-stat { text-align: center; }
+    .h-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--t-muted); margin-bottom: 5px; }
+    .h-val { font-size: 2rem; font-weight: 800; margin: 0; }
+
+    .chart-box { background: var(--w-bg); border: var(--w-border); border-radius: 24px; padding: 2rem; margin-bottom: 2rem; }
+    .table-box { background: var(--w-bg); border: var(--w-border); border-radius: 24px; overflow: hidden; margin-bottom: 2rem; }
+    .table-header { padding: 1.5rem; font-weight: 800; border-bottom: 1px solid rgba(0,0,0,0.05); }
+    
+    table { width: 100%; border-collapse: collapse; }
+    th { background: rgba(0,0,0,0.02); padding: 1rem; font-size: 0.8rem; text-align: left; color: var(--t-muted); }
+    td { padding: 1.2rem 1rem; border-bottom: 1px solid rgba(0,0,0,0.03); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="dash-container">
+    <div class="header-area">
+        <h2>System Management</h2>
+        <p style="color: var(--t-muted);">Master administrative controls.</p>
+    </div>
+
+    <div class="health-bar">
+        <div class="h-stat">
+            <p class="h-label">Database</p>
+            <p class="h-val" style="color: #2ecc71;">{{ health.db_status }}</p>
+        </div>
+        <div class="h-stat">
+            <p class="h-label">Active Admins</p>
+            <p class="h-val" style="color: #3498db;">{{ health.active_admins }}</p>
+        </div>
+        <div class="h-stat">
+            <p class="h-label">Integrity</p>
+            <p class="h-val" style="color: #2ecc71;">100%</p>
+        </div>
+    </div>
+
+    <div class="chart-box">
+        <p style="font-weight: 800; margin-bottom: 1.5rem;">System Growth Tracking</p>
+        <div style="height: 250px;"><canvas id="ownerChart"></canvas></div>
+    </div>
+
+    <div class="table-box">
+        <div class="table-header" style="color: #3498db;">Hospital Administrators</div>
+        <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for u in all_users if u.role == 'admin' %}
+                <tr>
+                    <td><strong>{{ u.name }}</strong></td>
+                    <td>{{ u.email }}</td>
+                    <td>
+                        <form action="{{ url_for('update_user_role', target_user_id=u.id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="role" value="user"/>
+                            <button type="submit" style="color: #e74c3c; background: none; border: 1px solid #e74c3c; border-radius: 6px; padding: 4px 10px; cursor: pointer;">Revoke Access</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-box">
+        <div class="table-header" style="color: #95a5a6;">Registered Patients</div>
+        <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for u in all_users if u.role == 'user' %}
+                <tr>
+                    <td><strong>{{ u.name }}</strong></td>
+                    <td>{{ u.email }}</td>
+                    <td>
+                        <form action="{{ url_for('update_user_role', target_user_id=u.id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="role" value="admin"/>
+                            <button type="submit" style="color: #2ecc71; background: none; border: 1px solid #2ecc71; border-radius: 6px; padding: 4px 10px; cursor: pointer;">Promote to Admin</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script id="owner-growth-data" type="application/json">
+    {{ graph_data | tojson | safe }}
+</script>
+
+<script>
+    // Pure JavaScript reads the data cleanly from the hidden tag
+    const rawData = document.getElementById('owner-growth-data').textContent;
+    const gData = JSON.parse(rawData);
+
+    const ctx = document.getElementById('ownerChart').getContext('2d');
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tCol = isDark ? '#a0a0b0' : '#888';
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: gData.labels,
+            datasets: [
+                { label: 'Patients', data: gData.user_data, borderColor: '#3498db', tension: 0.4, fill: false },
+                { label: 'Staff', data: gData.admin_data, borderColor: '#e74c3c', tension: 0.4, fill: false }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { color: tCol, stepSize: 1 }, grid: { color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' } },
+                x: { ticks: { color: tCol }, grid: { display: false } }
+            },
+            plugins: { legend: { labels: { color: tCol, font: { weight: 'bold' } } } }
+        }
+    });
+</script>
+{% endblock %}
