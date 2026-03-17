@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    :root { --w-bg: #ffffff; --w-border: 1px solid rgba(0,0,0,0.06); --t-muted: #888; }
+    [data-theme="dark"] { --w-bg: rgba(30, 30, 45, 0.7); --w-border: 1px solid rgba(255,255,255,0.05); --t-muted: #a0a0b0; }
+
+    .vault-container { width: 100%; max-width: 900px; margin: 0 auto; text-align: left; }
+    
+    .profile-header {
+        background: var(--w-bg); border: var(--w-border); border-radius: 24px; padding: 2rem; 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.02); backdrop-filter: blur(10px); margin-bottom: 2rem;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    
+    .back-btn {
+        display: inline-block; padding: 8px 16px; background: rgba(0,0,0,0.05); color: var(--text-primary);
+        border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: 0.2s;
+    }
+    [data-theme="dark"] .back-btn { background: rgba(255,255,255,0.1); }
+    .back-btn:hover { opacity: 0.8; }
+
+    .record-card {
+        background: var(--w-bg); border: var(--w-border); border-radius: 16px; padding: 1.5rem;
+        margin-bottom: 1rem; display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    
+    .record-icon {
+        width: 50px; height: 50px; border-radius: 12px; background: rgba(52, 152, 219, 0.1); color: #3498db;
+        display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vault-container">
+    
+    <div class="profile-header">
+        <div>
+            <h2 style="margin: 0; font-weight: 800;">Patient Vault: {{ target_user.name }}</h2>
+            <p style="color: var(--t-muted); margin: 5px 0 0 0;">ID: #{{ target_user.id }} | {{ target_user.email }}</p>
+            <span style="display: inline-block; margin-top: 10px; padding: 4px 10px; background: rgba(231, 76, 60, 0.1); color: #e74c3c; border-radius: 6px; font-size: 0.75rem; font-weight: 700;">ADMIN READ-ONLY ACCESS</span>
+        </div>
+        <a href="{{ url_for('admin_dashboard') }}" class="back-btn">← Back to Directory</a>
+    </div>
+
+    <h3 style="margin-bottom: 1rem; color: var(--text-primary);">Encrypted Evidence ({{ records|length }})</h3>
+    
+    {% for record in records %}
+    <div class="record-card">
+        <div style="display: flex; align-items: flex-start; gap: 1rem; width: 100%;">
+            <div class="record-icon">
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.36 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+            </div>
+            <div style="flex-grow: 1;">
+                <h4 style="margin: 0; font-weight: 700; color: var(--text-primary); font-size: 1.1rem;">{{ record.display_name }}</h4>
+                <p style="margin: 2px 0 10px 0; font-size: 0.8rem; color: var(--t-muted);">Uploaded: {{ record.created_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
+                
+                <div style="background: rgba(0,0,0,0.03); padding: 12px; border-radius: 8px; border-left: 3px solid #3498db;">
+                    <p style="margin: 0; font-size: 0.9rem; color: var(--text-primary); line-height: 1.4;">
+                        <strong>Context:</strong> {{ record.context or record.description or "No context provided by the patient." }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-left: 1rem; flex-shrink: 0; padding-top: 5px;">
+            <a href="{{ url_for('admin_download_record', record_id=record.id) }}" 
+               style="display: inline-block; padding: 10px 18px; background: #2ecc71; color: white; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 0.9rem; transition: 0.2s; box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3); white-space: nowrap;">
+               Decrypt & Download
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 3rem; background: var(--w-bg); border: var(--w-border); border-radius: 16px;">
+        <p style="color: var(--t-muted); font-weight: 600; font-size: 1.1rem;">This patient has not uploaded any records yet.</p>
+    </div>
+    {% endfor %}
+
+</div>
+{% endblock %}

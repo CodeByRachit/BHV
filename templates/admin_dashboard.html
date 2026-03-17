@@ -59,6 +59,34 @@
         <p style="text-align: center; color: var(--t-muted); padding: 2rem;">No system activity recorded.</p>
         {% endfor %}
     </div>
+
+    <div class="feed-card" style="padding: 0; overflow: hidden;">
+        <div style="padding: 1.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">
+            <span class="label-text" style="color: var(--text-primary); margin: 0;">Patient Directory</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr>
+                    <th style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.02); font-size: 0.8rem; color: var(--t-muted); text-transform: uppercase;">Patient Name</th>
+                    <th style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.02); font-size: 0.8rem; color: var(--t-muted); text-transform: uppercase;">Email</th>
+                    <th style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.02); font-size: 0.8rem; color: var(--t-muted); text-transform: uppercase;">Vault Access</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in patients %}
+                <tr>
+                    <td style="padding: 1.2rem 1.5rem; border-bottom: 1px solid rgba(0,0,0,0.03);"><strong>{{ p.name }}</strong></td>
+                    <td style="padding: 1.2rem 1.5rem; border-bottom: 1px solid rgba(0,0,0,0.03); color: var(--t-muted);">{{ p.email }}</td>
+                    <td style="padding: 1.2rem 1.5rem; border-bottom: 1px solid rgba(0,0,0,0.03);">
+                        <a href="{{ url_for('admin_view_user_vault', target_user_id=p.id) }}" style="display: inline-block; padding: 6px 14px; background: rgba(52, 152, 219, 0.1); color: #3498db; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.85rem; transition: 0.2s;">View Uploads</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" style="padding: 2rem; text-align: center; color: var(--t-muted);">No patients registered yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <script id="growth-data" type="application/json">

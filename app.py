@@ -58,11 +58,21 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 if not app.config['SECRET_KEY']:
     raise RuntimeError("SECRET_KEY not set in environment variables. Please set it in your .env file.")
 
-# --- Encryption Setup ---
+# --- Strict Encryption Setup ---
+# --- Strict Encryption Setup ---
 app.config['ENCRYPTION_KEY'] = os.environ.get('ENCRYPTION_KEY')
 if not app.config['ENCRYPTION_KEY']:
-    raise RuntimeError("ENCRYPTION_KEY not set in .env file! Please generate one and add it.")
+    raise RuntimeError("CRITICAL ERROR: ENCRYPTION_KEY not set in .env file! Please generate one and add it.")
 cipher_suite = Fernet(app.config['ENCRYPTION_KEY'])
+
+# --- MongoDB GridFS Setup ---
+import gridfs
+from pymongo import MongoClient
+from bson.objectid import ObjectId # Added to fix ObjectId error in download route
+
+mongo_client = MongoClient(os.environ.get("MONGO_URI", "mongodb://localhost:27017/"))
+mongo_db = mongo_client["bhv_database"] # Matched the DB name used in your ingest_record route
+fs = gridfs.GridFS(mongo_db, collection="vaulted_narratives") # Matched your collection name
 
 db.init_app(app)
 
@@ -355,8 +365,6 @@ def google_authorize():
 # ==========================================
 
 # --- ADMIN DASHBOARD ---
-from datetime import datetime, timedelta
-
 # --- REAL-TIME GROWTH DATA HELPER ---
 def get_user_growth_data():
     """Calculates real registrations over the last 7 days."""
@@ -380,7 +388,6 @@ def get_user_growth_data():
                     
     return {"labels": labels, "admin_data": admin_data, "user_data": user_data}
 
-# --- ADMIN DASHBOARD ---
 @app.route('/admin/dashboard')
 @login_required
 @admin_required
@@ -390,7 +397,10 @@ def admin_dashboard():
     records_count = RecoveryEntry.query.count()
     recent_activity = RecoveryEntry.query.order_by(RecoveryEntry.created_at.desc()).limit(5).all()
     
-    # 2. Bundle specifically for the template
+    # 2. Fetch the actual list of patients for the directory table
+    all_patients = User.query.filter_by(role='user').all()
+    
+    # 3. Bundle specifically for the template
     stats = {"total_patients": patients_count, "total_records": records_count}
     graph_data = get_user_growth_data()
     
@@ -399,8 +409,77 @@ def admin_dashboard():
         user=current_user, 
         stats=stats, 
         recent_activity=recent_activity,
-        graph_data=graph_data
+        graph_data=graph_data,
+        patients=all_patients 
     )
+
+@app.route('/admin/download-record/<int:record_id>')
+@login_required
+@admin_required
+def admin_download_record(record_id):
+    # 1. Fetch the metadata from SQLite
+    record = RecoveryEntry.query.get_or_404(record_id)
+    
+    # 2. Security Check: Ensure the file belongs to a standard patient
+    target_user = User.query.get(record.user_id)
+    if target_user.role in ['admin', 'owner']:
+        flash("Unauthorized: Cannot download staff vault records.", "error")
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        # 3. Fetch the file directly from MongoDB using the filename
+        # Based on your serve_file route, you save them with the 'stored_filename'
+        client = MongoClient(os.environ.get("MONGO_URI", "mongodb://localhost:27017/"))
+        vault_collection = client.bhv_database.vaulted_narratives
+        nosql_record = vault_collection.find_one({"filename": record.stored_filename, "user_id": target_user.id})
+        client.close()
+
+        if not nosql_record:
+            flash("System Error: Record metadata exists, but file is missing from Vault.", "error")
+            return redirect(url_for('admin_view_user_vault', target_user_id=target_user.id))
+
+        # 4. Decrypt the payload
+        encrypted_data = nosql_record['payload']
+        decrypted_bytes = cipher_suite.decrypt(encrypted_data)
+        
+        # 5. Serve the decrypted file directly to the admin's browser
+        buffer = io.BytesIO(decrypted_bytes)
+        buffer.seek(0)
+        
+        mimetype = 'application/octet-stream'
+        if record.stored_filename.lower().endswith(IMAGE_EXTENSIONS):
+            mimetype = f'image/{record.stored_filename.split(".")[-1].replace("jpg", "jpeg")}'
+            
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=record.display_name,
+            mimetype=mimetype
+        )
+        
+    except Exception as e:
+        print(f"Decryption Error: {e}")
+        flash("System Error: Could not decrypt this file. The encryption key may be invalid or missing.", "error")
+        return redirect(url_for('admin_view_user_vault', target_user_id=record.user_id))
+
+
+@app.route('/admin/user-vault/<int:target_user_id>')
+@login_required
+@admin_required
+def admin_view_user_vault(target_user_id):
+    # Get the requested user
+    target_user = User.query.get_or_404(target_user_id)
+    
+    # Security check: Admins should only view patients ('user' role)
+    if target_user.role in ['admin', 'owner']:
+        flash("Unauthorized: You cannot view the vaults of other staff members.", "error")
+        return redirect(url_for('admin_dashboard'))
+        
+    # Fetch all records belonging to this specific patient
+    user_records = RecoveryEntry.query.filter_by(user_id=target_user.id).order_by(RecoveryEntry.created_at.desc()).all()
+    
+    return render_template('admin_view_vault.html', target_user=target_user, records=user_records)
+
 
 # --- OWNER DASHBOARD ---
 @app.route('/owner/dashboard')
