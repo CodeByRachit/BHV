@@ -13,6 +13,7 @@ import pyotp
 import qrcode
 import io
 import base64
+import re
 
 # IMPORTS FOR ENCRYPTION & ASYNC DB
 from cryptography.fernet import Fernet
@@ -241,11 +242,25 @@ def login_2fa_prompt():
             
     return render_template('login_2fa.html')
 
-@app.route('/signup', methods=['POST'])
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
+    # --- NEW: If they refresh the page, just show them the form ---
+    if request.method == 'GET':
+        return render_template('login.html')
+    # -------------------------------------------------------------
+
     name = request.form.get('name')
     email = request.form.get('email')
     password = request.form.get('password')
+
+    # --- Password Strength Check ---
+    # Regex checks for: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+    password_pattern = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+    
+    if not password_pattern.match(password):
+        flash('Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
+        return redirect(url_for('login_page'))
+    # ------------------------------------
 
     if User.query.filter_by(email=email).first():
         flash("Email already registered. Try logging in.", "error")

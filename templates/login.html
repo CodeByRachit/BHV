@@ -114,6 +114,15 @@
 <script>
     let mode = 'login'; // Modes: login, signup, forgot_step1, forgot_step2
 
+    // Auto-detect the URL to show the correct form on load
+    document.addEventListener("DOMContentLoaded", function() {
+        if (window.location.pathname === '/signup') {
+            setMode('signup');
+        } else {
+            setMode('login');
+        }
+    });
+
     // Helper function to show beautiful in-form alerts instead of browser alerts
     function showFlashMessage(message, isSuccess = false) {
         const form = document.getElementById('authForm');
@@ -162,22 +171,29 @@
         const btn = document.getElementById('submitBtn');
         const toggle = document.getElementById('toggleText');
         const passLabel = document.getElementById('passwordLabel');
+        const mainPass = document.getElementById('mainPassword');
 
         // Reset all dynamic requirements to false first
         document.getElementById('nameInput').required = false;
         document.getElementById('otpInput').required = false;
-        document.getElementById('mainPassword').required = false;
+        mainPass.required = false;
         document.getElementById('confirmPassword').required = false;
         document.getElementById('emailInput').readOnly = false;
+        
+        // Clear any lingering password validation messages when switching modes
+        mainPass.setCustomValidity('');
+        document.getElementById('confirmPassword').setCustomValidity('');
 
         if (mode === 'login') {
             form.action = "/login";
+            // Important: Update the URL in the browser bar silently without reloading
+            window.history.pushState({}, '', '/login');
             title.textContent = "Sign In";
             nameGrp.style.display = "none";
             otpGrp.style.display = "none";
             passGrp.style.display = "block";
             passLabel.textContent = "Password";
-            document.getElementById('mainPassword').required = true;
+            mainPass.required = true;
             confGrp.style.display = "none";
             extras.style.display = "flex";
             btn.textContent = "Sign In";
@@ -187,13 +203,15 @@
         } 
         else if (mode === 'signup') {
             form.action = "/signup";
+            // Important: Update the URL in the browser bar silently without reloading
+            window.history.pushState({}, '', '/signup');
             title.textContent = "Create Account";
             nameGrp.style.display = "block";
             document.getElementById('nameInput').required = true;
             otpGrp.style.display = "none";
             passGrp.style.display = "block";
             passLabel.textContent = "Password";
-            document.getElementById('mainPassword').required = true;
+            mainPass.required = true;
             confGrp.style.display = "block";
             document.getElementById('confirmPassword').required = true;
             extras.style.display = "none";
@@ -217,13 +235,13 @@
         else if (mode === 'forgot_step2') {
             form.action = "/reset-password";
             title.textContent = "Set New Password";
-            document.getElementById('emailInput').readOnly = true; // Lock email so they can't change it after OTP is sent
+            document.getElementById('emailInput').readOnly = true; 
             nameGrp.style.display = "none";
             otpGrp.style.display = "block";
             document.getElementById('otpInput').required = true;
             passGrp.style.display = "block";
             passLabel.textContent = "New Password";
-            document.getElementById('mainPassword').required = true;
+            mainPass.required = true;
             confGrp.style.display = "block";
             document.getElementById('confirmPassword').required = true;
             extras.style.display = "none";
@@ -290,17 +308,31 @@
         }
     }
 
-    // Ensures passwords match in real-time
+    // Ensures passwords match in real-time AND validates strong password rules
     function validatePasswords() {
+        const pass = document.getElementById("mainPassword");
+        const conf = document.getElementById("confirmPassword");
+
         if (mode === 'signup' || mode === 'forgot_step2') {
-            const pass = document.getElementById("mainPassword");
-            const conf = document.getElementById("confirmPassword");
+            // Regex: At least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special character
+            const strongRegex = new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^a-zA-Z0-9]).{8,}$");
             
-            if(pass.value !== conf.value) {
+            if (!strongRegex.test(pass.value)) {
+                pass.setCustomValidity("Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character.");
+            } else {
+                pass.setCustomValidity(''); // Clears the error if it passes
+            }
+
+            // Check if passwords match
+            if(pass.value !== conf.value && conf.value !== "") {
                 conf.setCustomValidity("Passwords do not match");
             } else {
                 conf.setCustomValidity('');
             }
+        } else {
+            // Ensure no validation block prevents normal login
+            pass.setCustomValidity('');
+            conf.setCustomValidity('');
         }
     }
 </script>
