@@ -14,6 +14,8 @@ import qrcode
 import io
 import base64
 import re
+import random
+
 
 # IMPORTS FOR ENCRYPTION & ASYNC DB
 from cryptography.fernet import Fernet
@@ -26,6 +28,8 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
+from datetime import timedelta
+from flask import request, jsonify
 
 # AUTH IMPORTS
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -549,20 +553,15 @@ def profile_page():
 @login_required
 def update_profile():
     new_name = request.form.get('name')
-    new_email = request.form.get('email')
+    # We ignore the email field here completely because it is 
+    # securely handled by the OTP API routes now!
 
+    # 1. Update Name
     if new_name and new_name != current_user.name:
         current_user.name = new_name
 
-    if new_email and new_email != current_user.email:
-        existing_user = User.query.filter_by(email=new_email).first()
-        if existing_user:
-            flash("That email is already in use.", "error")
-            return redirect(url_for('profile_page'))
-        current_user.email = new_email
-
+    # 2. Update Profile Picture
     file = request.files.get('profile_pic')
-    
     if file and file.filename != '':
         if file.filename.lower().endswith(IMAGE_EXTENSIONS):
             filename = secure_filename(file.filename)
@@ -576,6 +575,7 @@ def update_profile():
             flash("Invalid file type. Please upload a valid image.", "error")
             return redirect(url_for('profile_page'))
 
+    # 3. Save Changes
     try:
         db.session.commit()
         flash("Profile updated successfully.", "success")
@@ -585,6 +585,61 @@ def update_profile():
         flash("A system error occurred while saving your changes.", "error")
 
     return redirect(url_for('profile_page'))
+
+# --- SECURE EMAIL UPDATE PIPELINE ---
+
+@app.route('/request-email-update', methods=['POST'])
+@login_required
+def request_email_update():
+    new_email = request.form.get('new_email')
+    
+    # 1. Validation
+    if not new_email or new_email == current_user.email:
+        return jsonify({"error": "Invalid or identical email."}), 400
+        
+    if User.query.filter_by(email=new_email).first():
+        return jsonify({"error": "Email already in use."}), 400
+
+    # 2. Generate the 6-digit OTP
+    otp = str(random.randint(100000, 999999))
+    
+    # 3. USE YOUR EXISTING EMAIL FUNCTION!
+    # (If your existing function requires a subject and body, just format them here)
+    try:
+        send_otp_email(new_email, otp) 
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return jsonify({"error": "Failed to send email. Please try again later."}), 500
+    
+    # 4. Save to database only IF the email successfully sent
+    current_user.pending_email = new_email
+    current_user.update_otp = otp 
+    current_user.update_otp_expiry = datetime.utcnow() + timedelta(minutes=10)
+    db.session.commit()
+    
+    return jsonify({"success": "OTP sent to your new email."}), 200
+
+@app.route('/verify-email-update', methods=['POST'])
+@login_required
+def verify_email_update():
+    user_otp = request.form.get('otp')
+    
+    if not current_user.pending_email or not current_user.update_otp:
+        return jsonify({"error": "No email update pending."}), 400
+        
+    if datetime.utcnow() > current_user.update_otp_expiry:
+        return jsonify({"error": "OTP has expired."}), 400
+        
+    if user_otp != current_user.update_otp:
+        return jsonify({"error": "Invalid OTP. Please try again."}), 400
+        
+    current_user.email = current_user.pending_email
+    current_user.pending_email = None
+    current_user.update_otp = None
+    current_user.update_otp_expiry = None
+    db.session.commit()
+    
+    return jsonify({"success": "Email updated successfully!"}), 200
 
 @app.route('/profile/change-password', methods=['POST'])
 @login_required

@@ -158,7 +158,7 @@
         <div class="card-header">
             👤 Personal Profile
         </div>
-        <form action="{{ url_for('update_profile') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ url_for('update_profile') }}" method="POST" enctype="multipart/form-data" id="profileForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="avatar-upload">
@@ -180,10 +180,17 @@
 
             <div class="input-group">
                 <label>Email Address</label>
-                <input class="input-field" type="email" name="email" value="{{ current_user.email }}" required>
+                <input class="input-field" type="email" name="email" id="emailInput" value="{{ current_user.email }}" required>
             </div>
 
-            <button type="submit" class="btn-submit">Save Changes</button>
+            <div id="otpSection" style="display: none; margin-bottom: 1.2rem; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 10px; border: 1px solid var(--accent-color, #00d2ff);">
+                <label style="color: var(--accent-color, #00d2ff); font-weight: 700; margin-bottom: 5px;">Verification Required</label>
+                <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 12px;">We sent a 6-digit code to your new email. Enter it to confirm the change.</p>
+                <input type="text" id="otpInput" class="input-field" placeholder="Enter 6-digit OTP" style="margin-bottom: 10px;">
+                <button type="button" id="verifyOtpBtn" class="btn-submit" style="margin-top: 0; padding: 10px;">Verify & Save</button>
+            </div>
+
+            <button type="submit" class="btn-submit" id="saveChangesBtn">Save Changes</button>
         </form>
     </div>
 
@@ -253,6 +260,7 @@
 </div>
 
 <script>
+    // Existing Avatar Preview Logic
     function previewImage(input) {
         if (input.files && input.files[0]) {
             var reader = new FileReader();
@@ -262,5 +270,98 @@
             reader.readAsDataURL(input.files[0]);
         }
     }
+
+    // --- NEW: Secure Email Update Interceptor Logic ---
+    document.addEventListener("DOMContentLoaded", function() {
+        const originalEmail = "{{ current_user.email }}";
+        const emailInput = document.getElementById('emailInput');
+        const saveChangesBtn = document.getElementById('saveChangesBtn');
+        const otpSection = document.getElementById('otpSection');
+        const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+        const otpInput = document.getElementById('otpInput');
+        const profileForm = document.getElementById('profileForm');
+        
+        // ADDED: Grab the CSRF token from your HTML form
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+        saveChangesBtn.addEventListener('click', async function(e) {
+            const newEmail = emailInput.value.trim();
+
+            // If email changed, stop the normal save and trigger the OTP flow
+            if (newEmail !== originalEmail && newEmail !== "") {
+                e.preventDefault(); // Stop normal form submission
+                
+                saveChangesBtn.innerText = "Sending OTP...";
+                saveChangesBtn.disabled = true;
+
+                const formData = new FormData();
+                formData.append('new_email', newEmail);
+                formData.append('csrf_token', csrfToken); // ADDED: Include CSRF Token
+
+                try {
+                    // CHANGED: Removed '/api' prefix to prevent FastAPI clash
+                    const response = await fetch('/request-email-update', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Hide save button, show OTP section
+                        saveChangesBtn.style.display = 'none';
+                        otpSection.style.display = 'block';
+                    } else {
+                        alert(data.error || "Failed to send OTP.");
+                        saveChangesBtn.innerText = "Save Changes";
+                        saveChangesBtn.disabled = false;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Network error.");
+                    saveChangesBtn.innerText = "Save Changes";
+                    saveChangesBtn.disabled = false;
+                }
+            }
+            // If email did NOT change, it ignores this block and submits the form normally!
+        });
+
+        verifyOtpBtn.addEventListener('click', async function() {
+            const otp = otpInput.value.trim();
+            if (!otp) return alert("Please enter the OTP");
+
+            verifyOtpBtn.innerText = "Verifying...";
+            verifyOtpBtn.disabled = true;
+            
+            const formData = new FormData();
+            formData.append('otp', otp);
+            formData.append('csrf_token', csrfToken); // ADDED: Include CSRF Token
+
+            try {
+                // CHANGED: Removed '/api' prefix to prevent FastAPI clash
+                const response = await fetch('/verify-email-update', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // OTP is valid! 
+                    // Now we programmatically submit the main form so their name/avatar changes also get saved.
+                    HTMLFormElement.prototype.submit.call(profileForm);
+                } else {
+                    alert(data.error || "Invalid OTP.");
+                    verifyOtpBtn.innerText = "Verify & Save";
+                    verifyOtpBtn.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Network error.");
+                verifyOtpBtn.innerText = "Verify & Save";
+                verifyOtpBtn.disabled = false;
+            }
+        });
+    });
 </script>
 {% endblock %}

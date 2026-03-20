@@ -32,6 +32,11 @@ class User(db.Model, UserMixin):
     totp_secret = db.Column(db.String(32), nullable=True)
     is_2fa_enabled = db.Column(db.Boolean, default=False)
 
+    # --- NEW: Secure Email Update Pipeline (ATO Protection) ---
+    pending_email = db.Column(db.String(150), unique=True, nullable=True)
+    update_otp = db.Column(db.String(6), nullable=True)
+    update_otp_expiry = db.Column(db.DateTime, nullable=True)
+
 # EXISTING: Your Recovery Entry Table
 class RecoveryEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
