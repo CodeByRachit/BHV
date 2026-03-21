@@ -91,6 +91,23 @@ login_manager.init_app(app)
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
+
+# --- GLOBAL SECURITY HEADERS ---
+@app.after_request
+def add_security_headers(response):
+    """
+    Adds critical HTTP security headers to every response sent by the server.
+    """
+    # Prevents attackers from embedding your site in an iframe (Clickjacking protection)
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    # Forces the browser to strictly follow the declared content type (MIME-sniffing protection)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # Tells browsers to ONLY connect via HTTPS for the next year (HSTS)
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 # ==========================================
 #          CUSTOM ROLE DECORATORS (RBAC)
 # ==========================================
