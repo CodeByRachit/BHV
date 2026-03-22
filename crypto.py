@@ -45,6 +45,10 @@ class StreamVaultSecurity:
             print(f"⚠️ IMPORTANT: SAVE THIS KEY IN YOUR .ENV FILE: BHV_STREAM_KEY={key_hex}")
             
         self.key = bytes.fromhex(key_hex)
+        
+        # --- NEW CODE: ENFORCE STRICT AES-256 KEY LENGTH ---
+        if len(self.key) != 32:
+            raise ValueError(f"CRITICAL: BHV requires a 32-byte key for AES-256. Provided key is {len(self.key)} bytes.")
 
     def get_encryptor(self):
         """Generates a unique Initialization Vector (IV) and a streaming encryptor."""
