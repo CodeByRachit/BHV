@@ -1047,6 +1047,9 @@ async def search_vault(
 fastapi_app.mount("/", WSGIMiddleware(app))
 
 if __name__ == '__main__':
+    # Fetch port from Render's environment, default to 8000 for local testing
+    port = int(os.environ.get("PORT", 8000))
+    
     with app.app_context():
         db.create_all()
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -1071,4 +1074,5 @@ if __name__ == '__main__':
                 db.session.commit()
                 print(f"👑 Owner account ({owner_email}) securely bootstrapped from .env!")
 
-    uvicorn.run(fastapi_app, host="127.0.0.1", port=8000)
+    # Use 0.0.0.0 and the dynamic port so Render can detect it
+    uvicorn.run(fastapi_app, host="0.0.0.0", port=port)
