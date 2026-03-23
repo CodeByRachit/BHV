@@ -154,13 +154,16 @@
     {% for entry in entries %}
     <article class="entry-card">
         
-        <button type="button" class="delete-btn" 
-                data-url="{{ url_for('delete_record', entry_id=entry.id) }}"
-                onclick="openModal(this.dataset.url)"
-                aria-label="Delete Record"
-                title="Delete Record">
-            🗑️
-        </button>
+        <form action="{{ url_for('delete_record', entry_id=entry.id) }}" method="POST" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <button type="submit" class="delete-btn" 
+            onclick="return confirm('Permanently delete this record? This cannot be undone.')"
+            aria-label="Delete Record"
+            title="Delete Record">
+                🗑️
+            </button>
+        </form>
 
         <div class="card-img-wrapper">
              {% if entry.stored_filename.lower().endswith(image_extensions) %}
