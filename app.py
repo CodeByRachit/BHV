@@ -1,5 +1,6 @@
 import os
 import hashlib
+import requests # NEW: Added for the Brevo HTTP API
 import smtplib
 import secrets  # For cryptographically secure random numbers
 from email.mime.text import MIMEText
@@ -98,10 +99,6 @@ login_manager.init_app(app)
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-@login_manager.user_loader
-def load_user(user_id):
-    return db.session.get(User, int(user_id))
-
 # --- GLOBAL SECURITY HEADERS ---
 @app.after_request
 def add_security_headers(response):
@@ -115,6 +112,7 @@ def add_security_headers(response):
     # Tells browsers to ONLY connect via HTTPS for the next year (HSTS)
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
+
 # ==========================================
 #          CUSTOM ROLE DECORATORS (RBAC)
 # ==========================================
@@ -148,57 +146,79 @@ google = oauth.register(
 # --- Email Token Setup ---
 token_serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
+# --- REPLACED: Brevo API Email Setup ---
 def send_otp_email(user_email, otp):
-    sender = os.environ.get('MAIL_USERNAME')
-    password = os.environ.get('MAIL_PASSWORD')
+    api_key = os.environ.get("BREVO_API_KEY")
     
-    if not sender or not password:
-        print("WARNING: Email credentials missing. OTP not sent.")
-        return
+    if not api_key:
+        print("CRITICAL: BREVO_API_KEY environment variable is missing!")
+        return False
 
-    msg = MIMEMultipart()
-    msg['From'] = f"Recovery Vault <{sender}>"
-    msg['To'] = user_email
-    msg['Subject'] = "Password Reset OTP"
+    url = "https://api.brevo.com/v3/smtp/email"
     
-    body = f"Your One-Time Password (OTP) for resetting your password is: {otp}\n\nIf you did not request this, please secure your account immediately."
-    msg.attach(MIMEText(body, 'plain'))
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    
+    payload = {
+        "sender": {
+            "name": "Vault Security", 
+            "email": "rachit4yadav4@gmail.com"  
+        },
+        "to": [{"email": user_email}],
+        "subject": "Your Secure OTP Code",
+        "htmlContent": f"<h3>Your OTP code is: <strong>{otp}</strong></h3><p>Do not share this code with anyone. If you did not request this, please secure your account immediately.</p>"
+    }
     
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender, password)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        print(f"Failed to send OTP email: {e}")
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status() 
+        print("✅ OTP Sent Successfully via Brevo API!")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Failed to send OTP email: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Brevo Error Details: {e.response.text}")
+        return False
 
 def send_verification_email(user_email, token):
-    sender = os.environ.get('MAIL_USERNAME')
-    password = os.environ.get('MAIL_PASSWORD')
+    api_key = os.environ.get("BREVO_API_KEY")
     
-    if not sender or not password:
-        print("WARNING: Email credentials missing in .env. Email not sent.")
-        return
+    if not api_key:
+        print("CRITICAL: BREVO_API_KEY environment variable is missing!")
+        return False
 
     link = url_for('verify_email', token=token, _external=True)
+    url = "https://api.brevo.com/v3/smtp/email"
     
-    msg = MIMEMultipart()
-    msg['From'] = f"Recovery Vault <{sender}>"
-    msg['To'] = user_email
-    msg['Subject'] = "Verify your Recovery Vault Account"
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
     
-    body = f"Welcome!\n\nPlease click the link below to verify your account:\n{link}\n\nThis link expires in 1 hour."
-    msg.attach(MIMEText(body, 'plain'))
+    payload = {
+        "sender": {
+            "name": "Vault Security", 
+            "email": "rachit4yadav4@gmail.com"  
+        },
+        "to": [{"email": user_email}],
+        "subject": "Verify your Recovery Vault Account",
+        "htmlContent": f"<p>Welcome!</p><p>Please click the link below to verify your account:</p><p><a href='{link}'>{link}</a></p><p>This link expires in 1 hour.</p>"
+    }
     
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender, password)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        print(f"Failed to send email: {e}")
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        print("✅ Verification Email Sent Successfully via Brevo API!")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Failed to send verification email: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Brevo Error Details: {e.response.text}")
+        return False
 
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
 
