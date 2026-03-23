@@ -55,13 +55,12 @@ app = Flask(__name__)
 csrf = CSRFProtect(app) 
 
 # --- Configuration ---
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vault_core.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('MONGO_URI', 'sqlite:///vault_core.db')
 app.config['UPLOAD_FOLDER'] = 'static/img'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-if not app.config['SECRET_KEY']:
-    raise RuntimeError("SECRET_KEY not set in environment variables. Please set it in your .env file.")
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-for-local-only')
 
 # --- Strict Encryption Setup ---
 # --- Strict Encryption Setup ---
@@ -80,6 +79,11 @@ mongo_db = mongo_client["bhv_database"] # Matched the DB name used in your inges
 fs = gridfs.GridFS(mongo_db, collection="vaulted_narratives") # Matched your collection name
 
 db.init_app(app)
+
+# Add this right here! 
+# This runs as soon as the file is loaded by Gunicorn.
+with app.app_context():
+    db.create_all()
 
 # --- Auth & Session Setup ---
 login_manager = LoginManager()
