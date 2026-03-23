@@ -58,7 +58,7 @@ csrf = CSRFProtect(app)
 # --- Configuration ---
 # We remove the SQLALCHEMY line because we are 100% MongoDB now
 app.config['MONGO_URI'] = os.environ.get('MONGO_URI') 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('MONGO_URI') or 'sqlite:///vault_core.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vault_core.db'
 app.config['UPLOAD_FOLDER'] = 'static/img'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
