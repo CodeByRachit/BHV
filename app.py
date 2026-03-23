@@ -69,7 +69,8 @@ app.config['ENCRYPTION_KEY'] = os.environ.get('ENCRYPTION_KEY')
 if not app.config['ENCRYPTION_KEY']:
     raise RuntimeError("CRITICAL ERROR: ENCRYPTION_KEY not set in .env file! Please generate one and add it.")
 cipher_suite = Fernet(app.config['ENCRYPTION_KEY'])
-
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_HEADERS'] = ['X-CSRFToken']
 # --- MongoDB GridFS Setup ---
 import gridfs
 from pymongo import MongoClient
