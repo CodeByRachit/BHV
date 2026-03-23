@@ -55,11 +55,12 @@ app = Flask(__name__)
 csrf = CSRFProtect(app) 
 
 # --- Configuration ---
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('MONGO_URI', 'sqlite:///vault_core.db')
+# --- Configuration ---
+# We remove the SQLALCHEMY line because we are 100% MongoDB now
+app.config['MONGO_URI'] = os.environ.get('MONGO_URI') 
 app.config['UPLOAD_FOLDER'] = 'static/img'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-for-local-only')
 
 # --- Strict Encryption Setup ---
