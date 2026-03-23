@@ -208,6 +208,7 @@
             title.textContent = "Create Account";
             nameGrp.style.display = "block";
             document.getElementById('nameInput').required = true;
+            document.getElementById('nameInput').disabled = false; // <-- ADDED THIS LINE to ensure the name is sent to Flask
             otpGrp.style.display = "none";
             passGrp.style.display = "block";
             passLabel.textContent = "Password";
