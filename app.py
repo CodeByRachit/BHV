@@ -16,7 +16,6 @@ import base64
 import re
 import random
 
-
 # IMPORTS FOR ENCRYPTION & ASYNC DB
 from cryptography.fernet import Fernet
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -28,8 +27,6 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
-from datetime import timedelta
-from flask import request, jsonify
 
 # RATE LIMITING IMPORTS
 from flask_limiter import Limiter
@@ -78,11 +75,11 @@ if not app.config['SECRET_KEY']:
     raise RuntimeError("SECRET_KEY not set in environment variables. Please set it in your .env file.")
 
 # --- Strict Encryption Setup ---
-# --- Strict Encryption Setup ---
 app.config['ENCRYPTION_KEY'] = os.environ.get('ENCRYPTION_KEY')
 if not app.config['ENCRYPTION_KEY']:
     raise RuntimeError("CRITICAL ERROR: ENCRYPTION_KEY not set in .env file! Please generate one and add it.")
-cipher_suite = Fernet(app.config['ENCRYPTION_KEY'])
+# FIXED: Encode the string to bytes to prevent TypeError
+cipher_suite = Fernet(app.config['ENCRYPTION_KEY'].encode('utf-8'))
 
 # --- MongoDB GridFS Setup ---
 import gridfs
@@ -100,10 +97,6 @@ login_manager = LoginManager()
 login_manager.login_view = 'login_page'
 login_manager.login_message_category = 'error'
 login_manager.init_app(app)
-
-@login_manager.user_loader
-def load_user(user_id):
-    return db.session.get(User, int(user_id))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -280,23 +273,18 @@ def login_2fa_prompt():
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    # --- NEW: If they refresh the page, just show them the form ---
     if request.method == 'GET':
         return render_template('login.html')
-    # -------------------------------------------------------------
 
     name = request.form.get('name')
     email = request.form.get('email')
     password = request.form.get('password')
 
-    # --- Password Strength Check ---
-    # Regex checks for: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
     password_pattern = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
     
     if not password_pattern.match(password):
         flash('Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
         return redirect(url_for('login_page'))
-    # ------------------------------------
 
     if User.query.filter_by(email=email).first():
         flash("Email already registered. Try logging in.", "error")
@@ -374,6 +362,12 @@ def reset_password():
 
     if session.get('reset_email') != email or session.get('reset_otp') != otp:
         flash("Invalid or expired OTP.", "error")
+        return redirect(url_for('login_page'))
+    
+    # FIXED: Check password strength on reset too
+    password_pattern = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+    if not password_pattern.match(new_password):
+        flash('Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
         return redirect(url_for('login_page'))
     
     user = User.query.filter_by(email=email).first()
@@ -585,8 +579,6 @@ def profile_page():
 @login_required
 def update_profile():
     new_name = request.form.get('name')
-    # We ignore the email field here completely because it is 
-    # securely handled by the OTP API routes now!
 
     # 1. Update Name
     if new_name and new_name != current_user.name:
@@ -632,11 +624,10 @@ def request_email_update():
     if User.query.filter_by(email=new_email).first():
         return jsonify({"error": "Email already in use."}), 400
 
-    # 2. Generate the 6-digit OTP
-    otp = str(random.randint(100000, 999999))
+    # 2. Generate the 6-digit OTP (FIXED: Using cryptographically secure PRNG)
+    otp = str(secrets.randbelow(900000) + 100000)
     
     # 3. USE YOUR EXISTING EMAIL FUNCTION!
-    # (If your existing function requires a subject and body, just format them here)
     try:
         send_otp_email(new_email, otp) 
     except Exception as e:
@@ -685,6 +676,12 @@ def change_password():
 
     if not check_password_hash(current_user.password_hash, current_password):
         flash("Incorrect current password.", "error")
+        return redirect(url_for('profile_page'))
+
+    # FIXED: Check password strength on change too
+    password_pattern = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+    if not password_pattern.match(new_password):
+        flash('New password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.', 'error')
         return redirect(url_for('profile_page'))
 
     current_user.password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
