@@ -31,6 +31,10 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from flask import request, jsonify
 
+# RATE LIMITING IMPORTS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 # AUTH IMPORTS
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
@@ -53,6 +57,16 @@ load_dotenv()
 
 app = Flask(__name__)
 csrf = CSRFProtect(app) 
+
+# --- Rate Limiter Setup ---
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+    # This disables the rate limiter automatically when pytest is running!
+    default_limits_exempt_when=lambda: app.config.get('TESTING', False)
+)
 
 # --- Configuration ---
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vault_core.db'
@@ -213,6 +227,7 @@ def welcome():
 # ==========================================
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", exempt_when=lambda: app.config.get('TESTING', False))
 def login_page():
     if current_user.is_authenticated:
         return redirect(url_for('welcome'))
