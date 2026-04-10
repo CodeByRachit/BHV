@@ -386,6 +386,17 @@ def google_login():
     redirect_uri = url_for('google_authorize', _external=True)
     return google.authorize_redirect(redirect_uri)
 
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    """
+    Intercepts the default white 'Too Many Requests' page.
+    Passes a lockout timer to the template for a live UI countdown.
+    """
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({"error": "Too many requests. Please wait 60 seconds."}), 429
+    flash("Security Alert: Maximum login attempts exceeded.Please wait 60 seconds.", "error")
+    return render_template('login.html', lockout_seconds=60), 429
+
 @app.route('/auth/google')
 def google_authorize():
     token = google.authorize_access_token()
