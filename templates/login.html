@@ -24,6 +24,14 @@
     .password-toggle svg { width: 20px; height: 20px; fill: #595959; transition: fill 0.2s; }
     .password-toggle:hover svg { fill: #2d79f3; }
 
+    /* Modern Lockout Alert Styles */
+    .lockout-alert { display: flex; align-items: center; gap: 15px; background-color: #fef2f2; border: 1px solid #fecaca; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
+    .lockout-icon { width: 28px; height: 28px; color: #dc2626; flex-shrink: 0; }
+    .lockout-text { text-align: left; font-family: system-ui, -apple-system, sans-serif; }
+    .lockout-title { font-weight: 600; font-size: 15px; color: #991b1b; }
+    .lockout-desc { font-size: 14px; margin-top: 4px; color: #b91c1c; }
+    .lockout-timer-badge { font-weight: 700; background: #fee2e2; padding: 2px 8px; border-radius: 6px; color: #991b1b; }
+
     [data-theme="dark"] .form { background-color: #1a1a1a; }
     [data-theme="dark"] .flex-column > label, [data-theme="dark"] .p, [data-theme="dark"] .flex-row > div > label { color: #f0f0f0; }
     [data-theme="dark"] .inputForm { border-color: #333; background: #252525; }
@@ -31,6 +39,12 @@
     [data-theme="dark"] .button-submit { background-color: #2d79f3; }
     [data-theme="dark"] .button-submit:hover { background-color: #1b5cc2; }
     [data-theme="dark"] .password-toggle svg { fill: #a0a0a0; }
+    
+    /* Dark Mode Lockout Alert */
+    [data-theme="dark"] .lockout-alert { background-color: rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.2); }
+    [data-theme="dark"] .lockout-title { color: #fca5a5; }
+    [data-theme="dark"] .lockout-desc { color: #f87171; }
+    [data-theme="dark"] .lockout-timer-badge { background: rgba(220, 38, 38, 0.25); color: #fff; }
 </style>
 {% endblock %}
 
@@ -41,6 +55,62 @@
         
         <h2 id="formTitle" style="margin-bottom: 20px; color: var(--text-primary);">Sign In</h2>
         
+        {% if lockout_seconds %}
+        <div id="lockout-banner" class="lockout-alert">
+            <svg class="lockout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <div class="lockout-text">
+                <div class="lockout-title">Brute Force Protection Active</div>
+                <div class="lockout-desc">Please wait <span id="countdown-timer" class="lockout-timer-badge">{{ lockout_seconds }}</span> seconds to try again.</div>
+            </div>
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // 1. Grab the form elements
+                const submitBtns = document.querySelectorAll('button[type="submit"]');
+                const inputs = document.querySelectorAll('input'); // Grabs the email & password fields
+                const banner = document.getElementById('lockout-banner');
+                const timerDisplay = document.getElementById('countdown-timer');
+                
+                let secondsLeft = parseInt("{{ lockout_seconds }}");
+
+                // 2. Lock the fields immediately so they cannot type!
+                submitBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                });
+                inputs.forEach(input => {
+                    input.disabled = true;
+                    input.style.backgroundColor = 'rgba(128, 128, 128, 0.2)'; // Makes it look "locked" for dark & light mode
+                });
+
+                // 3. Start the Countdown Clock
+                const interval = setInterval(function() {
+                    secondsLeft--;
+                    timerDisplay.textContent = secondsLeft;
+                    
+                    // 4. When time is up, unlock the email and password fields!
+                    if (secondsLeft <= 0) {
+                        clearInterval(interval);
+                        banner.style.display = 'none'; // Hide the banner
+                        
+                        submitBtns.forEach(btn => {
+                            btn.disabled = false;
+                            btn.style.opacity = '1';
+                            btn.style.cursor = 'pointer';
+                        });
+                        inputs.forEach(input => {
+                            input.disabled = false;
+                            input.style.backgroundColor = ''; // Remove the locked background
+                        });
+                    }
+                }, 1000); // Ticks every 1 second
+            });
+        </script>
+        {% endif %}
         <div id="nameGroup" style="display: none;">
             <div class="flex-column">
                 <label>Full Name</label>

@@ -394,7 +394,9 @@ def ratelimit_handler(e):
     """
     if request.is_json or request.path.startswith('/api/'):
         return jsonify({"error": "Too many requests. Please wait 60 seconds."}), 429
-    flash("Security Alert: Maximum login attempts exceeded.Please wait 60 seconds.", "error")
+        
+    flash("Security Alert: Maximum login attempts exceeded.", "error")
+    # We pass exactly 60 seconds to the UI so it knows how long to lock the form
     return render_template('login.html', lockout_seconds=60), 429
 
 @app.route('/auth/google')
